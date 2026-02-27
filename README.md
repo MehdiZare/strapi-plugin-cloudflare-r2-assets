@@ -2,6 +2,11 @@
 
 Strapi 5 plugin + upload provider that stores assets in Cloudflare R2 and generates Cloudflare edge image resizing URLs.
 
+## Guides
+
+- [`LLM.md`](./LLM.md): usage and integration guide (install/configure/run in a Strapi app)
+- [`AGENTS.md`](./AGENTS.md): contributor guide for coding agents working on this repository
+
 ## Features
 
 - Upload provider for Strapi Upload plugin backed by Cloudflare R2
