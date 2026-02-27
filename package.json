@@ -51,7 +51,15 @@
     "watch:link": "strapi-plugin watch:link",
     "verify": "strapi-plugin verify",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "check:artifacts": "node ./scripts/check-artifacts.mjs",
+    "release:check": "bun install && bun run build && npm test && npm run verify && npm run check:artifacts",
+    "release:patch": "npm version patch -m \"chore(release): v%s\"",
+    "release:minor": "npm version minor -m \"chore(release): v%s\"",
+    "release:major": "npm version major -m \"chore(release): v%s\"",
+    "preversion": "npm run release:check",
+    "version": "bun run build && npm run check:artifacts && git add -f dist package.json package-lock.json bun.lock",
+    "postversion": "echo \"Release commit and tag created. Push with: git push && git push --tags\""
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.821.0",

@@ -123,6 +123,18 @@ npm run develop
 - Missing required env vars
 - Setting provider name incorrectly in `config/plugins.ts`
 
+## Release commands
+
+For a release tag that includes `dist/**`:
+
+```bash
+npm run release:patch
+# or release:minor / release:major
+git push && git push --tags
+```
+
+The release workflows validate that the required built files exist and that package exports map to real files.
+
 ## Minimal troubleshooting prompt for LLMs
 
 When debugging an integration issue, ask for:

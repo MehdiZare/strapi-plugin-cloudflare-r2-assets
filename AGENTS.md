@@ -22,6 +22,7 @@ npm install
 npm test
 npm run build
 npm run verify
+npm run check:artifacts
 ```
 
 For local plugin development:
@@ -30,6 +31,26 @@ For local plugin development:
 npm run watch
 npm run watch:link
 ```
+
+## Release workflow
+
+Use version scripts for tag-based releases:
+
+```bash
+npm run release:patch
+# or release:minor / release:major
+git push && git push --tags
+```
+
+Release invariants:
+
+- `preversion` runs release checks
+- `version` force-adds `dist/**` for release commit
+- Tags must include required artifacts in commit tree:
+  - `dist/provider/index.js`
+  - `dist/provider/index.mjs`
+  - `dist/server/index.js`
+  - `dist/admin/index.js`
 
 ## How to use in a Strapi app (local link)
 

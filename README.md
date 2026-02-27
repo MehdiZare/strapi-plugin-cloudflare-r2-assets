@@ -99,6 +99,35 @@ npm run verify
 npm test
 ```
 
+## Release process
+
+Use tag-based releases with version scripts:
+
+```bash
+npm run release:patch
+# or: npm run release:minor
+# or: npm run release:major
+git push && git push --tags
+```
+
+What happens:
+
+- `preversion`: runs full release checks (`bun install`, `bun run build`, tests, verify, artifact checks)
+- `version`: rebuilds and force-adds `dist/**` into the release commit
+- `postversion`: prints push instructions
+
+GitHub Actions behavior:
+
+- `CI` workflow validates PRs and `main`
+- `Release` workflow runs on `v*` tags, verifies artifacts in the tag commit, publishes to npm, and uploads release assets
+
+Release commits/tags are expected to contain:
+
+- `dist/provider/index.js`
+- `dist/provider/index.mjs`
+- `dist/server/index.js`
+- `dist/admin/index.js`
+
 ## Security defaults
 
 - API keys read only from environment variables
