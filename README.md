@@ -89,6 +89,10 @@ After installation, open:
 
 The page is read-only and does not expose secrets.
 
+Access to diagnostics requires the plugin read permission action:
+
+- `plugin::cloudflare-r2-assets.read`
+
 ## Development commands
 
 ```bash
@@ -153,7 +157,12 @@ Required release artifacts:
 - API keys read only from environment variables
 - No credential persistence
 - Config validation fails fast
+- Numeric env options are strict integers (`CF_IMAGE_QUALITY`, `CF_IMAGE_MAX_FORMATS`)
+- `CF_PUBLIC_BASE_URL` and `CF_R2_ENDPOINT` must be valid `http(s)` URLs
 - Admin diagnostics redact account identity (suffix only)
+- Admin diagnostics route is gated by explicit plugin read permission
+- Bucket-check errors are sanitized before being returned to the admin UI
+- URL-derived delete fallbacks require exact origin match with `CF_PUBLIC_BASE_URL`
 
 ## License
 

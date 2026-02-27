@@ -1,6 +1,7 @@
 import type { StrapiApp } from '@strapi/strapi/admin';
 import { prefixPluginTranslations } from '@strapi/strapi/admin';
 
+import { SETTINGS_READ_ACTION } from '../../src/shared/constants';
 import pluginId from './pluginId';
 import getTrad from './utils/getTrad';
 
@@ -21,7 +22,12 @@ export default {
         defaultMessage: 'Cloudflare R2 Assets',
       },
       Component: () => import('./pages/SettingsStatusPage'),
-      permissions: [],
+      permissions: [
+        {
+          action: SETTINGS_READ_ACTION,
+          subject: null,
+        },
+      ],
     });
   },
 

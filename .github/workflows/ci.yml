@@ -47,6 +47,19 @@ jobs:
       - name: Verify release artifacts
         run: npm run check:artifacts
 
+      - name: Audit production dependencies (high+)
+        run: |
+          set -euo pipefail
+          if ! output="$(npm audit --omit=dev --audit-level=high 2>&1)"; then
+            echo "$output"
+            if echo "$output" | grep -qiE 'ENOTFOUND|EAI_AGAIN|ECONNRESET|timed out|audit endpoint returned an error'; then
+              echo "Skipping npm audit due transient registry/network error."
+              exit 0
+            fi
+            exit 1
+          fi
+          echo "$output"
+
   ci-expected:
     name: CI Expected
     runs-on: ubuntu-latest

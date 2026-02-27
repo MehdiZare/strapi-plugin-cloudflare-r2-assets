@@ -2,7 +2,7 @@ import { DeleteObjectCommand, HeadBucketCommand, PutObjectCommand, S3Client } fr
 
 import { PLUGIN_ID, PROVIDER_PACKAGE_NAME } from '../shared/constants';
 import { resolvePluginConfig } from '../shared/config';
-import { buildObjectKey, extractObjectKeyFromPublicUrl } from '../shared/path';
+import { buildObjectKey, extractObjectKeyFromPublicUrl, normalizeObjectKey } from '../shared/path';
 import type { ProviderUploadFile, RawPluginConfig } from '../shared/types';
 import { buildPublicObjectUrl, buildResizedUrl } from '../shared/url-builder';
 
@@ -104,7 +104,8 @@ export default {
         await upload(file);
       },
       async delete(file: ProviderUploadFile) {
-        const metadataKey = typeof file.provider_metadata?.key === 'string' ? file.provider_metadata.key : undefined;
+        const metadataKey =
+          typeof file.provider_metadata?.key === 'string' ? normalizeObjectKey(file.provider_metadata.key) : null;
         const keyFromUrl = extractObjectKeyFromPublicUrl(config.publicBaseUrl, file.url);
         const objectKey = metadataKey ?? keyFromUrl;
 
@@ -131,4 +132,3 @@ export default {
     };
   },
 };
-

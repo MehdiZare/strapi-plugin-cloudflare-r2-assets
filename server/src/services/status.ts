@@ -8,6 +8,22 @@ type StrapiLike = {
   config: {
     get: (key: string, defaultValue?: unknown) => any;
   };
+  log?: {
+    warn?: (message: string) => void;
+  };
+};
+
+const logWarning = (strapi: StrapiLike, message: string, error: unknown) => {
+  const detail = error instanceof Error ? error.message : String(error);
+  strapi.log?.warn?.(`[${PLUGIN_ID}] ${message}: ${detail}`);
+};
+
+const toConfigErrorMessage = (error: unknown): string => {
+  if (!(error instanceof Error)) {
+    return 'Invalid Cloudflare provider configuration.';
+  }
+
+  return error.message.startsWith(`[${PLUGIN_ID}]`) ? error.message : 'Invalid Cloudflare provider configuration.';
 };
 
 const createS3Client = (config: ReturnType<typeof resolvePluginConfig>) =>
@@ -48,13 +64,15 @@ export default ({ strapi }: { strapi: StrapiLike }) => ({
     try {
       config = resolvePluginConfig(providerOptions);
     } catch (error) {
+      logWarning(strapi, 'Configuration validation failed', error);
+
       return {
         pluginId: PLUGIN_ID,
         providerName,
         activeProvider: true,
         configured: false,
         warnings: [],
-        errors: [error instanceof Error ? error.message : 'Invalid Cloudflare provider configuration'],
+        errors: [toConfigErrorMessage(error)],
       };
     }
 
@@ -79,6 +97,8 @@ export default ({ strapi }: { strapi: StrapiLike }) => ({
         },
       };
     } catch (error) {
+      logWarning(strapi, 'Bucket connectivity check failed', error);
+
       return {
         pluginId: PLUGIN_ID,
         providerName,
@@ -91,10 +111,9 @@ export default ({ strapi }: { strapi: StrapiLike }) => ({
           ok: false,
           checkedAt: new Date().toISOString(),
           bucketReachable: false,
-          detail: error instanceof Error ? error.message : 'Could not reach configured bucket.',
+          detail: 'Bucket connectivity check failed. Verify bucket name, endpoint, and credentials.',
         },
       };
     }
   },
 });
-

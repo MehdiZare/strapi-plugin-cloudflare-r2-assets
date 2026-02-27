@@ -87,4 +87,24 @@ describe('resolvePluginConfig', () => {
       )
     ).toThrow(/exceeds maxFormats/);
   });
+
+  it('throws when CF_IMAGE_QUALITY is not an integer', () => {
+    expect(() =>
+      resolvePluginConfig({}, {
+        ...baseEnv,
+        CF_IMAGE_QUALITY: '82abc',
+      })
+    ).toThrow(/CF_IMAGE_QUALITY must be an integer/);
+  });
+
+  it('throws when public base URL is invalid', () => {
+    expect(() =>
+      resolvePluginConfig(
+        {
+          publicBaseUrl: 'not a url',
+        },
+        baseEnv
+      )
+    ).toThrow(/CF_PUBLIC_BASE_URL must be a valid http\(s\) URL/);
+  });
 });
