@@ -101,7 +101,31 @@ npm test
 
 ## Release process
 
-Use tag-based releases with version scripts:
+This repository uses a `dev -> main` release model with label-driven versioning.
+
+### 1. Create release intent on the automated release PR
+
+- `release-pr.yml` keeps an open PR from `dev` to `main`.
+- Add exactly one label to that PR:
+  - `release:major`
+  - `release:minor`
+  - `release:patch`
+
+### 2. Prerelease lane (`next`)
+
+- `dev-release.yml` runs on pushes to `dev`.
+- It reads the release label from the open `dev -> main` PR.
+- It publishes a prerelease to npm using dist-tag `next`.
+
+Install prerelease for validation:
+
+```bash
+npm i strapi-plugin-cloudflare-r2-assets@next
+```
+
+### 3. Stable release lane (`latest`)
+
+When ready for production:
 
 ```bash
 npm run release:patch
@@ -110,18 +134,14 @@ npm run release:patch
 git push && git push --tags
 ```
 
-What happens:
+`release.yml` runs on `v*` tags and:
 
-- `preversion`: runs full release checks (`bun install`, `bun run build`, tests, verify, artifact checks)
-- `version`: rebuilds and force-adds `dist/**` into the release commit
-- `postversion`: prints push instructions
+- validates build/test/verify/artifact checks
+- verifies required dist artifacts exist in the tag commit
+- publishes to npm (`latest`)
+- uploads `.tgz` and `dist.tar.gz` to GitHub Release assets
 
-GitHub Actions behavior:
-
-- `CI` workflow validates PRs and `main`
-- `Release` workflow runs on `v*` tags, verifies artifacts in the tag commit, publishes to npm, and uploads release assets
-
-Release commits/tags are expected to contain:
+Required release artifacts:
 
 - `dist/provider/index.js`
 - `dist/provider/index.mjs`

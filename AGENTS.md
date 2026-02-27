@@ -34,7 +34,20 @@ npm run watch:link
 
 ## Release workflow
 
-Use version scripts for tag-based releases:
+Release automation follows a `dev -> main` flow with label-driven versioning.
+
+Prerelease lane:
+
+- `dev-release.yml` runs on `dev`
+- reads release type from labels on open `dev -> main` PR:
+  - `release:major`
+  - `release:minor`
+  - `release:patch`
+- publishes prerelease package to npm `next`
+
+Stable lane:
+
+- use version scripts to create stable `v*` tag:
 
 ```bash
 npm run release:patch
@@ -42,7 +55,9 @@ npm run release:patch
 git push && git push --tags
 ```
 
-Release invariants:
+Then `release.yml` publishes to npm `latest`.
+
+Release invariants (both lanes):
 
 - `preversion` runs release checks
 - `version` force-adds `dist/**` for release commit

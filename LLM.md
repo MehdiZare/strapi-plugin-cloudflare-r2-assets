@@ -125,7 +125,27 @@ npm run develop
 
 ## Release commands
 
-For a release tag that includes `dist/**`:
+This repo has two release lanes:
+
+1. **Prerelease lane (`next`)**
+- Triggered by pushes to `dev` via `dev-release.yml`
+- Release type comes from label on the open `dev -> main` release PR:
+  - `release:major`
+  - `release:minor`
+  - `release:patch`
+- Publishes prerelease package to npm with tag `next`
+
+Install prerelease:
+
+```bash
+npm i strapi-plugin-cloudflare-r2-assets@next
+```
+
+2. **Stable lane (`latest`)**
+- Triggered by `v*` tags via `release.yml`
+- Publishes stable package to npm `latest`
+
+To cut stable tags locally:
 
 ```bash
 npm run release:patch
@@ -133,7 +153,7 @@ npm run release:patch
 git push && git push --tags
 ```
 
-The release workflows validate that the required built files exist and that package exports map to real files.
+Both lanes validate build/test/verify and artifact checks before publish.
 
 ## Minimal troubleshooting prompt for LLMs
 

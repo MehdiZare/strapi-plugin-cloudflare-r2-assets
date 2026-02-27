@@ -1,0 +1,53 @@
+name: Release PR
+
+on:
+  push:
+    branches:
+      - dev
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: release-pr-dev-to-main
+  cancel-in-progress: true
+
+jobs:
+  create-release-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
+          ref: dev
+
+      - name: Create or update release PR
+        uses: peter-evans/create-pull-request@v8.1.0
+        with:
+          branch: release/dev-to-main
+          base: main
+          title: 'Release: dev -> main'
+          labels: |
+            automated
+            release
+          delete-branch: false
+          body: |
+            ## Release Checklist
+
+            This is an automated release PR from `dev` to `main`.
+
+            ### Select release type
+            Apply exactly one label:
+            - `release:major`
+            - `release:minor`
+            - `release:patch`
+
+            ### Pre-merge checks
+            - [ ] CI passed
+            - [ ] `next` prerelease validated in staging
+            - [ ] docs/changelog verified
+
+            ### After merge
+            Stable release is published from a `v*` tag via `.github/workflows/release.yml`.
