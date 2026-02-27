@@ -10,13 +10,13 @@
     "r2",
     "image-resizing"
   ],
-  "homepage": "https://github.com/your-org/strapi-plugin-cloudflare-r2-assets",
+  "homepage": "https://github.com/MehdiZare/strapi-plugin-cloudflare-r2-assets",
   "repository": {
     "type": "git",
-    "url": "https://github.com/your-org/strapi-plugin-cloudflare-r2-assets.git"
+    "url": "https://github.com/MehdiZare/strapi-plugin-cloudflare-r2-assets.git"
   },
   "license": "MIT",
-  "author": "Your Name",
+  "author": "Mehdi Zare",
   "main": "./dist/provider/index.js",
   "types": "./src/provider/index.d.ts",
   "files": [
