@@ -99,6 +99,55 @@ npm run verify
 npm test
 ```
 
+## Release process
+
+This repository uses a `dev -> main` release model with label-driven versioning.
+
+### 1. Create release intent on the automated release PR
+
+- `release-pr.yml` keeps an open PR from `dev` to `main`.
+- Add exactly one label to that PR:
+  - `release:major`
+  - `release:minor`
+  - `release:patch`
+
+### 2. Prerelease lane (`next`)
+
+- `dev-release.yml` runs on pushes to `dev`.
+- It reads the release label from the open `dev -> main` PR.
+- It publishes a prerelease to npm using dist-tag `next`.
+
+Install prerelease for validation:
+
+```bash
+npm i strapi-plugin-cloudflare-r2-assets@next
+```
+
+### 3. Stable release lane (`latest`)
+
+When ready for production:
+
+```bash
+npm run release:patch
+# or: npm run release:minor
+# or: npm run release:major
+git push && git push --tags
+```
+
+`release.yml` runs on `v*` tags and:
+
+- validates build/test/verify/artifact checks
+- verifies required dist artifacts exist in the tag commit
+- publishes to npm (`latest`)
+- uploads `.tgz` and `dist.tar.gz` to GitHub Release assets
+
+Required release artifacts:
+
+- `dist/provider/index.js`
+- `dist/provider/index.mjs`
+- `dist/server/index.js`
+- `dist/admin/index.js`
+
 ## Security defaults
 
 - API keys read only from environment variables

@@ -123,6 +123,38 @@ npm run develop
 - Missing required env vars
 - Setting provider name incorrectly in `config/plugins.ts`
 
+## Release commands
+
+This repo has two release lanes:
+
+1. **Prerelease lane (`next`)**
+- Triggered by pushes to `dev` via `dev-release.yml`
+- Release type comes from label on the open `dev -> main` release PR:
+  - `release:major`
+  - `release:minor`
+  - `release:patch`
+- Publishes prerelease package to npm with tag `next`
+
+Install prerelease:
+
+```bash
+npm i strapi-plugin-cloudflare-r2-assets@next
+```
+
+2. **Stable lane (`latest`)**
+- Triggered by `v*` tags via `release.yml`
+- Publishes stable package to npm `latest`
+
+To cut stable tags locally:
+
+```bash
+npm run release:patch
+# or release:minor / release:major
+git push && git push --tags
+```
+
+Both lanes validate build/test/verify and artifact checks before publish.
+
 ## Minimal troubleshooting prompt for LLMs
 
 When debugging an integration issue, ask for:

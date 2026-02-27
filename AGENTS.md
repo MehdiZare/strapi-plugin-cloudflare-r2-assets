@@ -22,6 +22,7 @@ npm install
 npm test
 npm run build
 npm run verify
+npm run check:artifacts
 ```
 
 For local plugin development:
@@ -30,6 +31,41 @@ For local plugin development:
 npm run watch
 npm run watch:link
 ```
+
+## Release workflow
+
+Release automation follows a `dev -> main` flow with label-driven versioning.
+
+Prerelease lane:
+
+- `dev-release.yml` runs on `dev`
+- reads release type from labels on open `dev -> main` PR:
+  - `release:major`
+  - `release:minor`
+  - `release:patch`
+- publishes prerelease package to npm `next`
+
+Stable lane:
+
+- use version scripts to create stable `v*` tag:
+
+```bash
+npm run release:patch
+# or release:minor / release:major
+git push && git push --tags
+```
+
+Then `release.yml` publishes to npm `latest`.
+
+Release invariants (both lanes):
+
+- `preversion` runs release checks
+- `version` force-adds `dist/**` for release commit
+- Tags must include required artifacts in commit tree:
+  - `dist/provider/index.js`
+  - `dist/provider/index.mjs`
+  - `dist/server/index.js`
+  - `dist/admin/index.js`
 
 ## How to use in a Strapi app (local link)
 
