@@ -58,7 +58,7 @@
     "release:minor": "npm version minor -m \"chore(release): v%s\"",
     "release:major": "npm version major -m \"chore(release): v%s\"",
     "preversion": "npm run release:check",
-    "version": "bun run build && npm run check:artifacts && git add -f dist package.json package-lock.json bun.lock",
+    "version": "bun run build && npm run check:artifacts && git add -f dist package.json bun.lock",
     "postversion": "echo \"Release commit and tag created. Push with: git push && git push --tags\""
   },
   "dependencies": {

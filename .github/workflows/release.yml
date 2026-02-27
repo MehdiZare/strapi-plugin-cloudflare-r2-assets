@@ -49,7 +49,15 @@ jobs:
           git cat-file -e "${GITHUB_SHA}:dist/provider/index.js"
           git cat-file -e "${GITHUB_SHA}:dist/provider/index.mjs"
           git cat-file -e "${GITHUB_SHA}:dist/server/index.js"
+          git cat-file -e "${GITHUB_SHA}:dist/server/index.mjs"
           git cat-file -e "${GITHUB_SHA}:dist/admin/index.js"
+          git cat-file -e "${GITHUB_SHA}:dist/admin/index.mjs"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
 
   publish:
     needs: verify
@@ -64,22 +72,11 @@ jobs:
           node-version: 22
           registry-url: https://registry.npmjs.org
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2.1.2
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
         with:
-          bun-version: 1.3.10
-
-      - name: Install
-        run: bun install --frozen-lockfile
-
-      - name: Build
-        run: bun run build
-
-      - name: Verify package
-        run: npm run verify
-
-      - name: Verify release artifacts
-        run: npm run check:artifacts
+          name: dist
+          path: dist/
 
       - name: Publish to npm
         run: npm publish --access public
