@@ -27,7 +27,8 @@
   "types": "./src/provider/index.d.ts",
   "files": [
     "dist",
-    "src/provider/index.d.ts"
+    "src/provider/index.d.ts",
+    "marketplace-logo.png"
   ],
   "exports": {
     ".": {
@@ -103,6 +104,6 @@
     "name": "cloudflare-r2-assets",
     "displayName": "Cloudflare R2 Assets",
     "description": "Upload provider with Cloudflare R2 storage and Cloudflare edge image resizing.",
-    "kind": "plugin"
+    "kind": "provider"
   }
 }
