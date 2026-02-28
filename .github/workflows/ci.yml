@@ -134,6 +134,22 @@ jobs:
           });
           HEREDOC_EOF
 
+          cat <<'HEREDOC_EOF' > test-strapi-app/config/admin.ts
+          export default () => ({
+            auth: {
+              secret: "ci-test-secret-do-not-use-in-production",
+            },
+            apiToken: {
+              salt: "ci-test-salt-do-not-use-in-production",
+            },
+            transfer: {
+              token: {
+                salt: "ci-test-transfer-salt-do-not-use",
+              },
+            },
+          });
+          HEREDOC_EOF
+
           cat <<'HEREDOC_EOF' > test-strapi-app/config/plugins.ts
           export default () => ({
             "cloudflare-r2-assets": { enabled: true },
