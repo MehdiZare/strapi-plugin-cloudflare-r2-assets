@@ -27,24 +27,35 @@ Configure Strapi Upload to:
 npm install strapi-plugin-cloudflare-r2-assets
 ```
 
-## Configure Strapi
+## Enable the plugin
 
-In `config/plugins.ts`:
+Create or update `config/plugins.ts`:
 
 ```ts
 export default () => ({
+  // Upload provider — stores files in R2 and serves Cloudflare edge URLs
   upload: {
     config: {
       provider: 'strapi-plugin-cloudflare-r2-assets',
-      providerOptions: {
-        basePath: 'uploads',
-        formats: ['webp', 'avif'],
-        quality: 82,
-        maxFormats: 4,
-      },
+      providerOptions: {},
     },
   },
+  // Admin diagnostics page (Settings > Cloudflare R2 Assets)
+  'cloudflare-r2-assets': {
+    enabled: true,
+  },
 });
+```
+
+All settings are resolved from environment variables by default. You can optionally override defaults in `providerOptions`:
+
+```jsonc
+providerOptions: {
+  basePath: 'uploads',     // default: 'uploads'
+  formats: ['webp', 'avif'], // default: ['webp', 'avif']
+  quality: 82,             // default: 82
+  maxFormats: 4,           // default: 4
+},
 ```
 
 ## Required env vars

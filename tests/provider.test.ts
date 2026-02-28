@@ -77,6 +77,18 @@ describe('provider upload', () => {
     await expect(instance.upload(file)).rejects.toThrow('missing both "buffer" and "stream"');
   });
 
+  it('throws with descriptive message and preserves cause when S3 upload fails', async () => {
+    const sdkError = new Error('AccessDenied');
+    sendMock.mockRejectedValueOnce(sdkError);
+    const instance = provider.init(baseOptions);
+    const file = createFile({ buffer: Buffer.from('data') });
+
+    const error = await instance.upload(file).catch((e: unknown) => e) as Error;
+    expect(error).toBeInstanceOf(Error);
+    expect(error.message).toContain('Failed to upload object "uploads/abc123.jpg" to bucket "media": AccessDenied');
+    expect(error.cause).toBe(sdkError);
+  });
+
   it('passes CacheControl header to PutObjectCommand', async () => {
     const instance = provider.init({ ...baseOptions, cacheControl: 'public, max-age=31536000' });
     const file = createFile({ buffer: Buffer.from('data') });
@@ -170,5 +182,94 @@ describe('provider delete', () => {
     );
 
     expect(sendMock).not.toHaveBeenCalled();
+  });
+
+  it('skips delete for format variant URLs (cdn-cgi transform, no provider_metadata)', async () => {
+    const instance = provider.init(baseOptions);
+
+    await instance.delete(
+      createFile({
+        url: 'https://media.example.com/cdn-cgi/image/format=webp,quality=82/uploads/abc123.jpg',
+        provider_metadata: undefined,
+      })
+    );
+
+    expect(sendMock).not.toHaveBeenCalled();
+  });
+
+  it('still deletes when provider_metadata exists even if URL looks like a transform URL', async () => {
+    const instance = provider.init(baseOptions);
+
+    await instance.delete(
+      createFile({
+        url: 'https://media.example.com/cdn-cgi/image/format=webp,quality=82/uploads/abc123.jpg',
+        provider_metadata: { key: 'uploads/abc123.jpg' },
+      })
+    );
+
+    expect(sendMock).toHaveBeenCalledTimes(1);
+    const command = sendMock.mock.calls[0]?.[0] as { input: { Key: string } };
+    expect(command.input.Key).toBe('uploads/abc123.jpg');
+  });
+
+  it('logs warning and does not throw when S3 delete fails', async () => {
+    sendMock.mockRejectedValueOnce(new Error('AccessDenied'));
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const instance = provider.init(baseOptions);
+
+    await expect(
+      instance.delete(
+        createFile({
+          url: 'https://media.example.com/uploads/abc123.jpg',
+        })
+      )
+    ).resolves.toBeUndefined();
+
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    warnSpy.mockRestore();
+  });
+
+  it('warning includes the object key and error message', async () => {
+    sendMock.mockRejectedValueOnce(new Error('NoSuchBucket'));
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const instance = provider.init(baseOptions);
+
+    await instance.delete(
+      createFile({
+        url: 'https://media.example.com/uploads/abc123.jpg',
+      })
+    );
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('uploads/abc123.jpg')
+    );
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('NoSuchBucket')
+    );
+    warnSpy.mockRestore();
+  });
+});
+
+describe('provider healthCheck', () => {
+  beforeEach(() => {
+    sendMock.mockReset();
+    sendMock.mockResolvedValue({});
+  });
+
+  it('resolves when HeadBucket succeeds', async () => {
+    const instance = provider.init(baseOptions);
+    await expect(instance.healthCheck()).resolves.toBeUndefined();
+    expect(sendMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('throws with descriptive message and preserves cause when HeadBucket fails', async () => {
+    const sdkError = new Error('NotFound');
+    sendMock.mockRejectedValueOnce(sdkError);
+    const instance = provider.init(baseOptions);
+
+    const error = await instance.healthCheck().catch((e: unknown) => e) as Error;
+    expect(error).toBeInstanceOf(Error);
+    expect(error.message).toContain('Health check failed for bucket "media": NotFound');
+    expect(error.cause).toBe(sdkError);
   });
 });

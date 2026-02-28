@@ -6,7 +6,7 @@ import {
   DEFAULT_QUALITY,
   PLUGIN_ID,
 } from './constants';
-import type { AllowedImageFormat, RawPluginConfig, ResolvedPluginConfig } from './types';
+import type { AllowedImageFormat, EnvKeyInfo, RawPluginConfig, ResolvedPluginConfig } from './types';
 
 const ALLOWED_FORMAT_SET = new Set<string>(ALLOWED_IMAGE_FORMATS);
 
@@ -211,4 +211,99 @@ export const toPublicConfig = (config: ResolvedPluginConfig) => {
     maxFormats: config.maxFormats,
     cacheControl: config.cacheControl,
   };
+};
+
+const ENV_KEY_DESCRIPTIONS: Record<string, string> = {
+  CF_R2_ACCOUNT_ID: 'Cloudflare account ID',
+  CF_R2_BUCKET: 'R2 bucket name',
+  CF_R2_ACCESS_KEY_ID: 'R2 API access key ID',
+  CF_R2_SECRET_ACCESS_KEY: 'R2 API secret access key',
+  CF_PUBLIC_BASE_URL: 'Public URL for serving uploaded assets',
+  CF_R2_ENDPOINT: 'R2 S3-compatible endpoint URL (auto-derived from account ID if omitted)',
+  CF_R2_BASE_PATH: 'Object key prefix inside the bucket',
+  CF_R2_CACHE_CONTROL: 'Cache-Control header for uploaded objects',
+  CF_IMAGE_FORMATS: 'Comma-separated image output formats (e.g. webp,avif)',
+  CF_IMAGE_QUALITY: 'Image compression quality (1–100)',
+  CF_IMAGE_MAX_FORMATS: 'Maximum number of image format variants (1–10)',
+};
+
+const REQUIRED_ENV_KEYS = [
+  'CF_R2_ACCOUNT_ID',
+  'CF_R2_BUCKET',
+  'CF_R2_ACCESS_KEY_ID',
+  'CF_R2_SECRET_ACCESS_KEY',
+  'CF_PUBLIC_BASE_URL',
+];
+
+const OPTIONAL_ENV_KEYS = [
+  'CF_R2_ENDPOINT',
+  'CF_R2_BASE_PATH',
+  'CF_R2_CACHE_CONTROL',
+  'CF_IMAGE_FORMATS',
+  'CF_IMAGE_QUALITY',
+  'CF_IMAGE_MAX_FORMATS',
+];
+
+const hasConfiguredValue = (value: unknown): boolean => {
+  if (typeof value === 'string') {
+    return toTrimmedOrUndefined(value) !== undefined;
+  }
+  if (Array.isArray(value)) {
+    return value.length > 0;
+  }
+  return value !== undefined && value !== null;
+};
+
+export const checkEnvKeys = (
+  options: RawPluginConfig = {},
+  env: NodeJS.ProcessEnv = process.env,
+): EnvKeyInfo[] => {
+  const envPrefix = normalizeEnvPrefix(toTrimmedOrUndefined(env.CF_R2_ENV_PREFIX));
+  const getEnv = (key: string): string | undefined => {
+    const prefixed = envPrefix ? toTrimmedOrUndefined(env[`${envPrefix}${key}`]) : undefined;
+    return prefixed ?? toTrimmedOrUndefined(env[key]);
+  };
+
+  const optionKeyMap: Record<string, keyof RawPluginConfig> = {
+    CF_R2_ACCOUNT_ID: 'accountId',
+    CF_R2_BUCKET: 'bucket',
+    CF_R2_ACCESS_KEY_ID: 'accessKeyId',
+    CF_R2_SECRET_ACCESS_KEY: 'secretAccessKey',
+    CF_PUBLIC_BASE_URL: 'publicBaseUrl',
+    CF_R2_ENDPOINT: 'endpoint',
+    CF_R2_BASE_PATH: 'basePath',
+    CF_R2_CACHE_CONTROL: 'cacheControl',
+    CF_IMAGE_FORMATS: 'formats',
+    CF_IMAGE_QUALITY: 'quality',
+    CF_IMAGE_MAX_FORMATS: 'maxFormats',
+  };
+
+  const isResolved = (key: string): boolean => {
+    const optKey = optionKeyMap[key];
+    if (optKey && hasConfiguredValue(options[optKey])) {
+      return true;
+    }
+    if (getEnv(key) !== undefined) {
+      return true;
+    }
+    // CF_R2_ENDPOINT is auto-derived from CF_R2_ACCOUNT_ID in resolvePluginConfig
+    if (key === 'CF_R2_ENDPOINT') {
+      const accountIdOpt = optionKeyMap['CF_R2_ACCOUNT_ID'];
+      return (accountIdOpt && hasConfiguredValue(options[accountIdOpt])) || getEnv('CF_R2_ACCOUNT_ID') !== undefined;
+    }
+    return false;
+  };
+
+  const toInfo = (key: string, required: boolean): EnvKeyInfo => ({
+    key,
+    description: ENV_KEY_DESCRIPTIONS[key] ?? key,
+    required,
+    resolved: isResolved(key),
+    ...(envPrefix ? { prefixedKey: `${envPrefix}${key}` } : {}),
+  });
+
+  return [
+    ...REQUIRED_ENV_KEYS.map((k) => toInfo(k, true)),
+    ...OPTIONAL_ENV_KEYS.map((k) => toInfo(k, false)),
+  ];
 };

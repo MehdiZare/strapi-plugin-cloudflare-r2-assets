@@ -17,7 +17,12 @@ concurrency:
 
 jobs:
   validate:
+    name: Validate (Node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [20, 22, 24]
     steps:
       - name: Checkout
         uses: actions/checkout@v6.0.2
@@ -25,7 +30,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6.2.0
         with:
-          node-version: 22
+          node-version: ${{ matrix.node-version }}
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2.1.2
@@ -77,17 +82,158 @@ jobs:
       - name: Audit full dependency graph (informational)
         run: npm audit --json --audit-level=low || true
 
+  strapi-build:
+    name: Strapi Build
+    runs-on: ubuntu-latest
+    env:
+      APP_KEYS: test-key-1,test-key-2
+      API_TOKEN_SALT: test-api-token-salt
+      ADMIN_JWT_SECRET: test-admin-jwt-secret
+      TRANSFER_TOKEN_SALT: test-transfer-token-salt
+      JWT_SECRET: test-jwt-secret
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6.2.0
+        with:
+          node-version: 22
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2.1.2
+        with:
+          bun-version: 1.3.10
+
+      - name: Build and pack plugin
+        run: bun install --frozen-lockfile && bun run build && npm pack
+
+      - name: Create test Strapi app
+        run: |
+          mkdir -p test-strapi-app/config test-strapi-app/public/uploads
+
+          cat <<'HEREDOC_EOF' > test-strapi-app/package.json
+          {
+            "name": "test-strapi-app",
+            "private": true,
+            "scripts": {
+              "build": "strapi build"
+            },
+            "dependencies": {
+              "@strapi/strapi": "latest",
+              "better-sqlite3": "latest",
+              "react": "^18.0.0",
+              "react-dom": "^18.0.0",
+              "react-router-dom": "^6.0.0",
+              "styled-components": "^6.0.0"
+            }
+          }
+          HEREDOC_EOF
+
+          cat <<'HEREDOC_EOF' > test-strapi-app/config/database.ts
+          export default () => ({
+            connection: {
+              client: "sqlite",
+              connection: { filename: ".tmp/data.db" },
+              useNullAsDefault: true,
+            },
+          });
+          HEREDOC_EOF
+
+          cat <<'HEREDOC_EOF' > test-strapi-app/config/server.ts
+          export default () => ({
+            host: "0.0.0.0",
+            port: 1337,
+            app: {
+              keys: (process.env.APP_KEYS || "").split(","),
+            },
+          });
+          HEREDOC_EOF
+
+          cat <<'HEREDOC_EOF' > test-strapi-app/config/admin.ts
+          export default () => ({
+            auth: {
+              secret: process.env.ADMIN_JWT_SECRET,
+            },
+            apiToken: {
+              salt: process.env.API_TOKEN_SALT,
+            },
+            transfer: {
+              token: {
+                salt: process.env.TRANSFER_TOKEN_SALT,
+              },
+            },
+          });
+          HEREDOC_EOF
+
+          cat <<'HEREDOC_EOF' > test-strapi-app/config/plugins.ts
+          export default () => ({
+            "cloudflare-r2-assets": { enabled: true },
+          });
+          HEREDOC_EOF
+
+          cat <<'HEREDOC_EOF' > test-strapi-app/tsconfig.json
+          {
+            "compilerOptions": {
+              "target": "ES2020",
+              "module": "commonjs",
+              "moduleResolution": "node",
+              "esModuleInterop": true,
+              "strict": true,
+              "outDir": "dist",
+              "rootDir": "."
+            },
+            "include": ["config/**/*.ts"]
+          }
+          HEREDOC_EOF
+
+      - name: Install deps and plugin tarball
+        run: |
+          cd test-strapi-app
+          npm install
+          npm install ../strapi-plugin-cloudflare-r2-assets-*.tgz
+
+      - name: Run Strapi build
+        run: |
+          cd test-strapi-app
+          npx strapi build
+
+      - name: Smoke-test admin UI
+        run: |
+          cd test-strapi-app
+          npx strapi start &
+          STRAPI_PID=$!
+
+          # Poll until Strapi responds or timeout after 60s
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:1337/admin > /dev/null 2>&1; then
+              echo "Admin UI responded OK on attempt $i"
+              kill $STRAPI_PID
+              exit 0
+            fi
+            sleep 1
+          done
+
+          echo "Admin UI did not respond within 60 seconds"
+          kill $STRAPI_PID 2>/dev/null || true
+          exit 1
+
   ci-expected:
     name: CI Expected
     runs-on: ubuntu-latest
     needs:
       - validate
+      - strapi-build
     if: ${{ always() }}
     steps:
       - name: Verify required jobs
         run: |
           if [ "${{ needs.validate.result }}" != "success" ]; then
             echo "validate job result: ${{ needs.validate.result }}"
+            exit 1
+          fi
+          if [ "${{ needs.strapi-build.result }}" != "success" ]; then
+            echo "strapi-build job result: ${{ needs.strapi-build.result }}"
             exit 1
           fi
           echo "All required CI checks passed."

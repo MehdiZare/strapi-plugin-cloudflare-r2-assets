@@ -8,8 +8,8 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pull-requests: read
+  contents: write
+  pull-requests: write
 
 concurrency:
   group: dev-release-${{ github.ref }}
@@ -133,11 +133,25 @@ jobs:
 
       - name: Ensure latest dist-tag does not point to a prerelease
         run: |
-          LATEST="$(npm view strapi-plugin-cloudflare-r2-assets dist-tags.latest 2>/dev/null || true)"
-          if [ -n "$LATEST" ] && echo "$LATEST" | grep -q -- '-dev\.'; then
-            echo "::warning::latest dist-tag points to prerelease ($LATEST) — removing it"
-            npm dist-tag rm strapi-plugin-cloudflare-r2-assets latest || true
+          set -euo pipefail
+          PACKAGE_NAME="strapi-plugin-cloudflare-r2-assets"
+          LATEST="$(npm view "$PACKAGE_NAME" dist-tags.latest 2>/dev/null || true)"
+          if [ -n "$LATEST" ] && echo "$LATEST" | grep -q -- '-'; then
+            echo "::warning::latest dist-tag points to prerelease ($LATEST) — restoring latest stable tag"
+            STABLE="$(npm view "$PACKAGE_NAME" versions --json | node -e 'const fs=require("node:fs"); const raw=fs.readFileSync(0,"utf8").trim(); const versions = raw ? JSON.parse(raw) : []; const list = Array.isArray(versions) ? versions : [versions]; const stable = list.filter((v) => typeof v === "string" && !v.includes("-")); process.stdout.write(stable[stable.length - 1] ?? "");')"
+            if [ -z "$STABLE" ]; then
+              echo "::warning::No stable versions found on npm; leaving dist-tags unchanged."
+              exit 0
+            fi
+            npm dist-tag add "${PACKAGE_NAME}@${STABLE}" latest
           fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Deprecate broken prerelease versions
+        run: |
+          npm deprecate "strapi-plugin-cloudflare-r2-assets@0.0.1-dev.22508101207" \
+            "Broken build — imports non-existent prefixPluginTranslations. Use @next or a stable release." || true
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -168,3 +182,43 @@ jobs:
             echo "npm i strapi-plugin-cloudflare-r2-assets@next"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+  create-release-pr:
+    if: github.ref == 'refs/heads/dev'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
+          ref: dev
+
+      - name: Create or update release PR
+        uses: peter-evans/create-pull-request@v8.1.0
+        with:
+          branch: release/dev-to-main
+          base: main
+          title: 'Release: dev -> main'
+          labels: |
+            automated
+            release
+          delete-branch: false
+          update-branch: true
+          body: |
+            ## Release Checklist
+
+            This is an automated release PR from `dev` to `main`.
+
+            ### Select release type
+            Apply exactly one label:
+            - `release:major`
+            - `release:minor`
+            - `release:patch`
+
+            ### Pre-merge checks
+            - [ ] CI passed
+            - [ ] `next` prerelease validated in staging
+            - [ ] docs/changelog verified
+
+            ### After merge
+            Stable release is published from a `v*` tag via `.github/workflows/release.yml`.

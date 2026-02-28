@@ -4,7 +4,7 @@ import { DeleteObjectCommand, HeadBucketCommand, PutObjectCommand } from '@aws-s
 
 import { PLUGIN_ID, PROVIDER_PACKAGE_NAME } from '../shared/constants';
 import { resolvePluginConfig } from '../shared/config';
-import { buildObjectKey, extractObjectKeyFromPublicUrl, normalizeObjectKey } from '../shared/path';
+import { buildObjectKey, extractObjectKeyFromPublicUrl, isCloudflareTransformUrl, normalizeObjectKey } from '../shared/path';
 import { createS3Client } from '../shared/s3-client';
 import type { ProviderUploadFile, RawPluginConfig } from '../shared/types';
 import { buildPublicObjectUrl, buildResizedUrl } from '../shared/url-builder';
@@ -69,15 +69,20 @@ const provider = {
       const objectKey = resolveObjectKey(file, config.basePath);
       const body = resolveBody(file);
 
-      await client.send(
-        new PutObjectCommand({
-          Bucket: config.bucket,
-          Key: objectKey,
-          Body: body,
-          ContentType: file.mime,
-          CacheControl: config.cacheControl,
-        })
-      );
+      try {
+        await client.send(
+          new PutObjectCommand({
+            Bucket: config.bucket,
+            Key: objectKey,
+            Body: body,
+            ContentType: file.mime,
+            CacheControl: config.cacheControl,
+          })
+        );
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : String(error);
+        throw new Error(`[${PLUGIN_ID}] Failed to upload object "${objectKey}" to bucket "${config.bucket}": ${detail}`, { cause: error });
+      }
 
       const sourceUrl = buildPublicObjectUrl(config.publicBaseUrl, objectKey);
 
@@ -98,6 +103,10 @@ const provider = {
         await upload(file);
       },
       async delete(file: ProviderUploadFile) {
+        if (!file.provider_metadata && isCloudflareTransformUrl(file.url)) {
+          return;
+        }
+
         const metadataKey =
           typeof file.provider_metadata?.key === 'string' ? normalizeObjectKey(file.provider_metadata.key) : null;
         const keyFromUrl = extractObjectKeyFromPublicUrl(config.publicBaseUrl, file.url);
@@ -107,12 +116,17 @@ const provider = {
           return;
         }
 
-        await client.send(
-          new DeleteObjectCommand({
-            Bucket: config.bucket,
-            Key: objectKey,
-          })
-        );
+        try {
+          await client.send(
+            new DeleteObjectCommand({
+              Bucket: config.bucket,
+              Key: objectKey,
+            })
+          );
+        } catch (error) {
+          const detail = error instanceof Error ? error.message : String(error);
+          console.warn(`[${PLUGIN_ID}] Failed to delete object "${objectKey}" from bucket "${config.bucket}": ${detail}`);
+        }
       },
       isPrivate() {
         return false;
@@ -121,7 +135,12 @@ const provider = {
         return file;
       },
       async healthCheck() {
-        await client.send(new HeadBucketCommand({ Bucket: config.bucket }));
+        try {
+          await client.send(new HeadBucketCommand({ Bucket: config.bucket }));
+        } catch (error) {
+          const detail = error instanceof Error ? error.message : String(error);
+          throw new Error(`[${PLUGIN_ID}] Health check failed for bucket "${config.bucket}": ${detail}`, { cause: error });
+        }
       },
     };
   },
