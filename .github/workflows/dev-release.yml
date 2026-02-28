@@ -133,11 +133,17 @@ jobs:
 
       - name: Ensure latest dist-tag does not point to a prerelease
         run: |
-          LATEST="$(npm view strapi-plugin-cloudflare-r2-assets dist-tags.latest 2>/dev/null || true)"
-          if [ -n "$LATEST" ] && echo "$LATEST" | grep -q -- '-dev\.'; then
-            echo "::warning::latest dist-tag points to prerelease ($LATEST) — moving it to current next version"
-            NEXT="${{ steps.version.outputs.version }}"
-            npm dist-tag add "strapi-plugin-cloudflare-r2-assets@${NEXT}" latest || true
+          set -euo pipefail
+          PACKAGE_NAME="strapi-plugin-cloudflare-r2-assets"
+          LATEST="$(npm view "$PACKAGE_NAME" dist-tags.latest 2>/dev/null || true)"
+          if [ -n "$LATEST" ] && echo "$LATEST" | grep -q -- '-'; then
+            echo "::warning::latest dist-tag points to prerelease ($LATEST) — restoring latest stable tag"
+            STABLE="$(npm view "$PACKAGE_NAME" versions --json | node -e 'const fs=require("node:fs"); const raw=fs.readFileSync(0,"utf8").trim(); const versions = raw ? JSON.parse(raw) : []; const list = Array.isArray(versions) ? versions : [versions]; const stable = list.filter((v) => typeof v === "string" && !v.includes("-")); process.stdout.write(stable[stable.length - 1] ?? "");')"
+            if [ -z "$STABLE" ]; then
+              echo "::warning::No stable versions found on npm; leaving dist-tags unchanged."
+              exit 0
+            fi
+            npm dist-tag add "${PACKAGE_NAME}@${STABLE}" latest
           fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
