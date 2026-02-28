@@ -64,22 +64,28 @@ Optional:
 
 ## Strapi configuration
 
-`config/plugins.ts`:
+Create or update `config/plugins.ts`:
 
 ```ts
 export default () => ({
   upload: {
     config: {
-      provider: 'strapi-plugin-cloudflare-r2-assets',
-      providerOptions: {
-        basePath: 'uploads',
-        formats: ['webp', 'avif'],
-        quality: 82,
-        maxFormats: 4
-      }
-    }
-  }
+      provider: "strapi-plugin-cloudflare-r2-assets",
+      providerOptions: {},
+    },
+  },
 });
+```
+
+All settings are resolved from environment variables by default. You can optionally override defaults in `providerOptions`:
+
+```ts
+providerOptions: {
+  basePath: 'uploads',       // default: 'uploads'
+  formats: ['webp', 'avif'], // default: ['webp', 'avif']
+  quality: 82,               // default: 82
+  maxFormats: 4,             // default: 4
+},
 ```
 
 Set `CF_R2_ENV_PREFIX` to resolve prefixed values. For example, with `CF_R2_ENV_PREFIX=CMS_`, the plugin resolves `CMS_CF_R2_ACCOUNT_ID`, `CMS_CF_R2_BUCKET`, etc., and then falls back to unprefixed keys when needed.
