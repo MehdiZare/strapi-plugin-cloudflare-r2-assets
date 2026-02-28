@@ -34,6 +34,8 @@ jobs:
 
       - name: Create and push tag
         run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git tag -a "v${{ steps.version.outputs.version }}" \
             -m "chore(release): v${{ steps.version.outputs.version }}" \
             "${{ github.event.pull_request.merge_commit_sha }}"
