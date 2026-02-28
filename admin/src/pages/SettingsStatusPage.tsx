@@ -97,7 +97,7 @@ const SettingsStatusPage = (): JSX.Element => {
           ) : null}
 
           {state.status === 'success' ? (
-            <Flex direction="column" gap={4}>
+            <Flex direction="column" alignItems="stretch" gap={4}>
               {/* Section 1: Upload Provider */}
               {state.data.activeProvider ? (
                 <StatusCard

@@ -62,7 +62,7 @@ const EnvKeyList = ({ envKeys }: EnvKeyListProps): JSX.Element => {
   const optional = envKeys.filter((k) => !k.required);
 
   return (
-    <Flex direction="column" gap={1}>
+    <Flex direction="column" alignItems="stretch" gap={1}>
       {required.map((info) => (
         <EnvKeyRow key={info.key} info={info} />
       ))}
