@@ -1,0 +1,107 @@
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+name: Release PR
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Version bump type
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: release-pr
+  cancel-in-progress: false
+
+jobs:
+  create-release-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v6.0.2
+        with:
+          ref: main
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6.2.0
+        with:
+          node-version: 22
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2.1.2
+        with:
+          bun-version: 1.3.10
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Build
+        run: bun run build
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      - name: Verify package
+        run: npm run verify
+
+      - name: Verify release artifacts
+        run: npm run check:artifacts
+
+      - name: Audit production dependencies (high+)
+        run: npm run audit:check
+
+      - name: Bump version
+        run: npm version "${{ inputs.bump }}" --no-git-tag-version
+
+      - name: Read new version
+        id: version
+        run: echo "version=$(node -p 'require(\"./package.json\").version')" >> "$GITHUB_OUTPUT"
+
+      - name: Rebuild with new version
+        run: bun run build
+
+      - name: Verify rebuilt artifacts
+        run: npm run check:artifacts
+
+      - name: Create release PR
+        uses: peter-evans/create-pull-request@v8.1.0
+        with:
+          add-paths: |
+            dist/
+            package.json
+            bun.lock
+          branch: release/v${{ steps.version.outputs.version }}
+          base: main
+          commit-message: 'chore(release): v${{ steps.version.outputs.version }}'
+          title: 'chore(release): v${{ steps.version.outputs.version }}'
+          labels: |
+            automated
+            release
+          body: |
+            ## Release v${{ steps.version.outputs.version }}
+
+            Bump type: `${{ inputs.bump }}`
+
+            ### What happens after merge
+
+            1. `release-tag.yml` detects the merged `release/v*` branch
+            2. Creates annotated tag `v${{ steps.version.outputs.version }}`
+            3. Tag push triggers `release.yml` which publishes to npm `latest`
+
+            ### Pre-merge checklist
+            - [ ] CI passed
+            - [ ] Version bump is correct
+            - [ ] `dist/` artifacts are included in the commit

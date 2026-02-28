@@ -62,12 +62,6 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "check:artifacts": "node ./scripts/check-artifacts.mjs",
     "release:check": "bun ci && bun run build && npm run typecheck && npm test && npm run verify && npm run check:artifacts",
-    "release:patch": "npm version patch -m \"chore(release): v%s\"",
-    "release:minor": "npm version minor -m \"chore(release): v%s\"",
-    "release:major": "npm version major -m \"chore(release): v%s\"",
-    "preversion": "npm run release:check",
-    "version": "bun run build && npm run check:artifacts && git add -f dist package.json bun.lock",
-    "postversion": "echo \"Release commit and tag created. Push with: git push && git push --tags\"",
     "audit:check": "bash scripts/audit-production.sh",
     "prepare": "git config core.hooksPath .githooks || true"
   },
