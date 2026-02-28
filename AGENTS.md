@@ -58,22 +58,18 @@ Prerelease lane:
   - `release:patch`
 - publishes prerelease package to npm `next`
 
-Stable lane:
+Stable lane (PR-based, respects branch protection):
 
-- use version scripts to create stable `v*` tag:
-
-```bash
-npm run release:patch
-# or release:minor / release:major
-git push && git push --tags
-```
-
-Then `release.yml` publishes to npm `latest`.
+1. Go to **Actions → "Release PR" → Run workflow**
+2. Select bump type (`patch`, `minor`, or `major`)
+3. The workflow validates, bumps the version, rebuilds, and opens a PR with `dist/` artifacts
+4. Review and merge the PR
+5. `release-tag.yml` auto-creates an annotated `v*` tag on the merge commit
+6. Tag push triggers `release.yml` which publishes to npm `latest`
 
 Release invariants (both lanes):
 
-- `preversion` runs release checks
-- `version` force-adds `dist/**` for release commit
+- Release PR workflow runs full validation before bumping
 - Tags must include required artifacts in commit tree:
   - `dist/provider/index.js`
   - `dist/provider/index.mjs`
