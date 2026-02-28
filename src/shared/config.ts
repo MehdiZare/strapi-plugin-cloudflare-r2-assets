@@ -177,12 +177,20 @@ export const resolvePluginConfig = (options: RawPluginConfig = {}, env: NodeJS.P
   };
 };
 
+const maskEndpointAccountId = (endpoint: string, accountId: string): string => {
+  if (!accountId || !endpoint.includes(accountId)) {
+    return endpoint;
+  }
+  const masked = `****${maskSuffix(accountId)}`;
+  return endpoint.replace(accountId, masked);
+};
+
 export const toPublicConfig = (config: ResolvedPluginConfig) => {
   return {
     envPrefix: config.envPrefix,
     bucket: config.bucket,
     accountIdSuffix: maskSuffix(config.accountId),
-    endpoint: config.endpoint,
+    endpoint: maskEndpointAccountId(config.endpoint, config.accountId),
     publicBaseUrl: config.publicBaseUrl,
     basePath: config.basePath,
     formats: config.formats,

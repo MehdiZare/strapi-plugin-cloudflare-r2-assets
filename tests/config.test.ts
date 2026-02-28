@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { resolvePluginConfig } from '../src/shared/config';
+import { resolvePluginConfig, toPublicConfig } from '../src/shared/config';
 
 describe('resolvePluginConfig', () => {
   const baseEnv = {
@@ -106,5 +106,39 @@ describe('resolvePluginConfig', () => {
         baseEnv
       )
     ).toThrow(/CF_PUBLIC_BASE_URL must be a valid http\(s\) URL/);
+  });
+});
+
+describe('toPublicConfig', () => {
+  it('masks account ID in the endpoint URL', () => {
+    const config = resolvePluginConfig({}, {
+      CF_R2_ACCOUNT_ID: 'abc123def456',
+      CF_R2_BUCKET: 'media',
+      CF_R2_ACCESS_KEY_ID: 'key_id',
+      CF_R2_SECRET_ACCESS_KEY: 'secret_key',
+      CF_PUBLIC_BASE_URL: 'https://media.example.com',
+    });
+
+    const publicConfig = toPublicConfig(config);
+
+    expect(publicConfig.endpoint).toBe('https://****f456.r2.cloudflarestorage.com');
+    expect(publicConfig.endpoint).not.toContain('abc123def456');
+    expect(publicConfig.accountIdSuffix).toBe('f456');
+  });
+
+  it('preserves custom endpoint that does not contain account ID', () => {
+    const config = resolvePluginConfig({
+      endpoint: 'https://custom-r2.example.com',
+    }, {
+      CF_R2_ACCOUNT_ID: 'abc123def456',
+      CF_R2_BUCKET: 'media',
+      CF_R2_ACCESS_KEY_ID: 'key_id',
+      CF_R2_SECRET_ACCESS_KEY: 'secret_key',
+      CF_PUBLIC_BASE_URL: 'https://media.example.com',
+    });
+
+    const publicConfig = toPublicConfig(config);
+
+    expect(publicConfig.endpoint).toBe('https://custom-r2.example.com');
   });
 });

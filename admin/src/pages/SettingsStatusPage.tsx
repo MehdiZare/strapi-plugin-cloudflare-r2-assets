@@ -1,5 +1,6 @@
 import type { JSX } from 'react';
 import { useEffect, useMemo, useState } from 'react';
+import { useFetchClient } from '@strapi/admin/strapi-admin';
 
 import pluginId from '../pluginId';
 import type { SettingsStatusResponse } from '../../../src/shared/types';
@@ -14,30 +15,16 @@ const endpoint = `/${pluginId}/settings/status`;
 
 const SettingsStatusPage = (): JSX.Element => {
   const [state, setState] = useState<FetchState>({ status: 'loading' });
+  const { get } = useFetchClient();
 
   useEffect(() => {
     const controller = new AbortController();
 
     const run = async () => {
       try {
-        const response = await fetch(endpoint, {
-          method: 'GET',
-          credentials: 'include',
+        const { data } = await get<SettingsStatusResponse>(endpoint, {
           signal: controller.signal,
-          headers: {
-            Accept: 'application/json',
-          },
         });
-
-        if (!response.ok) {
-          setState({
-            status: 'error',
-            error: `HTTP ${response.status}`,
-          });
-          return;
-        }
-
-        const data = (await response.json()) as SettingsStatusResponse;
         setState({ status: 'success', data });
       } catch (error) {
         if (!controller.signal.aborted) {
@@ -52,7 +39,7 @@ const SettingsStatusPage = (): JSX.Element => {
     void run();
 
     return () => controller.abort();
-  }, []);
+  }, [get]);
 
   const title = useMemo(() => 'Cloudflare R2 Assets', []);
 

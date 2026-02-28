@@ -89,4 +89,46 @@ describe('status service', () => {
     expect(result.configured).toBe(false);
     expect(result.errors[0]).toMatch(/Missing required configuration/);
   });
+
+  it('handles network timeout errors gracefully', async () => {
+    const timeoutError = new Error('connect ETIMEDOUT 192.168.1.1:443');
+    timeoutError.name = 'TimeoutError';
+    sendMock.mockRejectedValueOnce(timeoutError);
+
+    const strapi = createStrapi({
+      config: {
+        provider: 'strapi-plugin-cloudflare-r2-assets',
+        providerOptions,
+      },
+    });
+    const service = createStatusService({ strapi });
+    const result = await service.getStatus();
+
+    expect(result.configured).toBe(true);
+    expect(result.health?.ok).toBe(false);
+    expect(result.health?.bucketReachable).toBe(false);
+    expect(strapi.log.warn).toHaveBeenCalledTimes(1);
+    const warnMessage = strapi.log.warn.mock.calls[0]?.[0] as string;
+    expect(warnMessage).toContain('ETIMEDOUT');
+  });
+
+  it('returns healthy status when bucket check succeeds', async () => {
+    sendMock.mockResolvedValueOnce({});
+
+    const strapi = createStrapi({
+      config: {
+        provider: 'strapi-plugin-cloudflare-r2-assets',
+        providerOptions,
+      },
+    });
+    const service = createStatusService({ strapi });
+    const result = await service.getStatus();
+
+    expect(result.configured).toBe(true);
+    expect(result.activeProvider).toBe(true);
+    expect(result.health?.ok).toBe(true);
+    expect(result.health?.bucketReachable).toBe(true);
+    expect(result.config).toBeDefined();
+    expect(result.config?.bucket).toBe('media');
+  });
 });

@@ -1,7 +1,8 @@
-import { HeadBucketCommand, S3Client } from '@aws-sdk/client-s3';
+import { HeadBucketCommand } from '@aws-sdk/client-s3';
 
 import { PLUGIN_ID, PROVIDER_PACKAGE_NAME } from '../../../src/shared/constants';
 import { resolvePluginConfig, toPublicConfig } from '../../../src/shared/config';
+import { createS3Client } from '../../../src/shared/s3-client';
 import type { RawPluginConfig, SettingsStatusResponse } from '../../../src/shared/types';
 
 type StrapiLike = {
@@ -30,16 +31,6 @@ const toConfigErrorMessage = (error: unknown): string => {
 
   return error.message.startsWith(`[${PLUGIN_ID}]`) ? error.message : 'Invalid Cloudflare provider configuration.';
 };
-
-const createS3Client = (config: ReturnType<typeof resolvePluginConfig>) =>
-  new S3Client({
-    endpoint: config.endpoint,
-    region: 'auto',
-    credentials: {
-      accessKeyId: config.accessKeyId,
-      secretAccessKey: config.secretAccessKey,
-    },
-  });
 
 export default ({ strapi }: { strapi: StrapiLike }) => ({
   async getStatus(): Promise<SettingsStatusResponse> {

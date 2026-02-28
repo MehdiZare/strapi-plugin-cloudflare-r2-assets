@@ -1,3 +1,5 @@
+import { Readable } from 'node:stream';
+
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const sendMock = vi.fn();
@@ -49,6 +51,79 @@ const createFile = (overrides: Partial<ProviderUploadFile> = {}): ProviderUpload
     ...overrides,
   };
 };
+
+describe('provider upload', () => {
+  beforeEach(() => {
+    sendMock.mockReset();
+    sendMock.mockResolvedValue({});
+  });
+
+  it('uploads using stream when buffer is absent', async () => {
+    const instance = provider.init(baseOptions);
+    const stream = Readable.from(Buffer.from('stream-data'));
+
+    const file = createFile({ buffer: undefined, stream });
+    await instance.uploadStream(file);
+
+    expect(sendMock).toHaveBeenCalledTimes(1);
+    const command = sendMock.mock.calls[0]?.[0] as { input: { Body: unknown } };
+    expect(command.input.Body).toBe(stream);
+  });
+
+  it('throws when file has neither buffer nor stream', async () => {
+    const instance = provider.init(baseOptions);
+    const file = createFile({ buffer: undefined, stream: undefined });
+
+    await expect(instance.upload(file)).rejects.toThrow('missing both "buffer" and "stream"');
+  });
+
+  it('passes CacheControl header to PutObjectCommand', async () => {
+    const instance = provider.init({ ...baseOptions, cacheControl: 'public, max-age=31536000' });
+    const file = createFile({ buffer: Buffer.from('data') });
+
+    await instance.upload(file);
+
+    expect(sendMock).toHaveBeenCalledTimes(1);
+    const command = sendMock.mock.calls[0]?.[0] as { input: { CacheControl?: string } };
+    expect(command.input.CacheControl).toBe('public, max-age=31536000');
+  });
+
+  it('sets file.url, provider_metadata, and formats after upload', async () => {
+    const instance = provider.init(baseOptions);
+    const file = createFile({
+      buffer: Buffer.from('data'),
+      width: 800,
+      height: 600,
+    });
+
+    await instance.upload(file);
+
+    expect(file.url).toBe('https://media.example.com/uploads/abc123.jpg');
+    expect(file.provider).toBe('strapi-plugin-cloudflare-r2-assets');
+    expect(file.provider_metadata).toEqual({
+      bucket: 'media',
+      key: 'uploads/abc123.jpg',
+    });
+    expect(file.formats).toBeDefined();
+    expect(file.formats).toHaveProperty('webp');
+    expect(file.formats).toHaveProperty('avif');
+  });
+
+  it('does not set formats for non-image files', async () => {
+    const instance = provider.init(baseOptions);
+    const file = createFile({
+      buffer: Buffer.from('data'),
+      mime: 'application/pdf',
+      ext: '.pdf',
+      hash: 'doc123',
+    });
+
+    await instance.upload(file);
+
+    expect(file.url).toBe('https://media.example.com/uploads/doc123.pdf');
+    expect(file.formats).toBeUndefined();
+  });
+});
 
 describe('provider delete', () => {
   beforeEach(() => {
