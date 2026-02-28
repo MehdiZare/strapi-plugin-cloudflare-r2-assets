@@ -195,7 +195,31 @@ describe('checkEnvKeys', () => {
     const optional = result.filter((k) => !k.required);
 
     expect(optional.length).toBeGreaterThan(0);
-    expect(optional.every((k) => !k.resolved)).toBe(true);
+    // CF_R2_ENDPOINT is auto-derived from CF_R2_ACCOUNT_ID
+    const endpoint = optional.find((k) => k.key === 'CF_R2_ENDPOINT');
+    expect(endpoint?.resolved).toBe(true);
+    expect(optional.filter((k) => k.key !== 'CF_R2_ENDPOINT').every((k) => !k.resolved)).toBe(true);
+  });
+
+  it('resolves CF_R2_ENDPOINT when CF_R2_ACCOUNT_ID is set via env', () => {
+    const result = checkEnvKeys({}, { CF_R2_ACCOUNT_ID: 'acc_12345' });
+    const endpoint = result.find((k) => k.key === 'CF_R2_ENDPOINT');
+
+    expect(endpoint?.resolved).toBe(true);
+  });
+
+  it('resolves CF_R2_ENDPOINT when accountId is set via options', () => {
+    const result = checkEnvKeys({ accountId: 'acc_12345' }, {});
+    const endpoint = result.find((k) => k.key === 'CF_R2_ENDPOINT');
+
+    expect(endpoint?.resolved).toBe(true);
+  });
+
+  it('does not resolve CF_R2_ENDPOINT when CF_R2_ACCOUNT_ID is missing', () => {
+    const result = checkEnvKeys({}, {});
+    const endpoint = result.find((k) => k.key === 'CF_R2_ENDPOINT');
+
+    expect(endpoint?.resolved).toBe(false);
   });
 
   it('resolves optional keys from env', () => {

@@ -283,7 +283,15 @@ export const checkEnvKeys = (
     if (optKey && hasConfiguredValue(options[optKey])) {
       return true;
     }
-    return getEnv(key) !== undefined;
+    if (getEnv(key) !== undefined) {
+      return true;
+    }
+    // CF_R2_ENDPOINT is auto-derived from CF_R2_ACCOUNT_ID in resolvePluginConfig
+    if (key === 'CF_R2_ENDPOINT') {
+      const accountIdOpt = optionKeyMap['CF_R2_ACCOUNT_ID'];
+      return (accountIdOpt && hasConfiguredValue(options[accountIdOpt])) || getEnv('CF_R2_ACCOUNT_ID') !== undefined;
+    }
+    return false;
   };
 
   const toInfo = (key: string, required: boolean): EnvKeyInfo => ({
