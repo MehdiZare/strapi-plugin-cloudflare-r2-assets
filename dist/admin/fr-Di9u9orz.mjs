@@ -1,0 +1,8 @@
+const fr = {
+  "plugin.name": "Cloudflare R2 Assets",
+  "settings.link.label": "Cloudflare R2 Assets",
+  "settings.link.description": "Afficher la configuration et l'etat du fournisseur"
+};
+export {
+  fr as default
+};
