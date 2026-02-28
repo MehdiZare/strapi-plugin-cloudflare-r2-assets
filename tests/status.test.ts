@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const sendMock = vi.fn();
 
@@ -51,19 +51,28 @@ const createStrapi = (uploadConfig: unknown): MockStrapi => ({
   },
 });
 
+const originalEnvPrefix = process.env.CF_R2_ENV_PREFIX;
+
 describe('status service', () => {
   beforeEach(() => {
     sendMock.mockReset();
+  });
+
+  afterEach(() => {
+    if (typeof originalEnvPrefix === 'undefined') {
+      delete process.env.CF_R2_ENV_PREFIX;
+      return;
+    }
+
+    process.env.CF_R2_ENV_PREFIX = originalEnvPrefix;
   });
 
   it('returns sanitized connectivity details when bucket check fails', async () => {
     sendMock.mockRejectedValueOnce(new Error('request failed secretAccessKey=abc123'));
 
     const strapi = createStrapi({
-      config: {
-        provider: 'strapi-plugin-cloudflare-r2-assets',
-        providerOptions,
-      },
+      provider: 'strapi-plugin-cloudflare-r2-assets',
+      providerOptions,
     });
     const service = createStatusService({ strapi });
     const result = await service.getStatus();
@@ -76,11 +85,11 @@ describe('status service', () => {
   });
 
   it('returns scoped configuration validation errors', async () => {
+    delete process.env.CF_R2_ENV_PREFIX;
+
     const strapi = createStrapi({
-      config: {
-        provider: 'strapi-plugin-cloudflare-r2-assets',
-        providerOptions: {},
-      },
+      provider: 'strapi-plugin-cloudflare-r2-assets',
+      providerOptions: {},
     });
 
     const service = createStatusService({ strapi });
@@ -88,6 +97,7 @@ describe('status service', () => {
 
     expect(result.configured).toBe(false);
     expect(result.errors[0]).toMatch(/Missing required configuration/);
+    expect(result.warnings[0]).toContain('CF_R2_ENV_PREFIX=CMS_');
   });
 
   it('handles network timeout errors gracefully', async () => {
@@ -96,10 +106,8 @@ describe('status service', () => {
     sendMock.mockRejectedValueOnce(timeoutError);
 
     const strapi = createStrapi({
-      config: {
-        provider: 'strapi-plugin-cloudflare-r2-assets',
-        providerOptions,
-      },
+      provider: 'strapi-plugin-cloudflare-r2-assets',
+      providerOptions,
     });
     const service = createStatusService({ strapi });
     const result = await service.getStatus();
@@ -116,10 +124,8 @@ describe('status service', () => {
     sendMock.mockResolvedValueOnce({});
 
     const strapi = createStrapi({
-      config: {
-        provider: 'strapi-plugin-cloudflare-r2-assets',
-        providerOptions,
-      },
+      provider: 'strapi-plugin-cloudflare-r2-assets',
+      providerOptions,
     });
     const service = createStatusService({ strapi });
     const result = await service.getStatus();
@@ -130,5 +136,22 @@ describe('status service', () => {
     expect(result.health?.bucketReachable).toBe(true);
     expect(result.config).toBeDefined();
     expect(result.config?.bucket).toBe('media');
+  });
+
+  it('supports nested upload config shape for compatibility', async () => {
+    sendMock.mockResolvedValueOnce({});
+
+    const strapi = createStrapi({
+      config: {
+        provider: 'strapi-plugin-cloudflare-r2-assets',
+        providerOptions,
+      },
+    });
+
+    const service = createStatusService({ strapi });
+    const result = await service.getStatus();
+
+    expect(result.activeProvider).toBe(true);
+    expect(result.configured).toBe(true);
   });
 });

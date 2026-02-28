@@ -135,11 +135,10 @@ Optional:
 - `CF_R2_CACHE_CONTROL`
 - `CF_R2_ENV_PREFIX`
 
-### Prefix support (`envPrefix`)
+### Prefix support
 
-Agents can configure prefixed env resolution in either way:
+Prefixed env resolution is configured via environment variable only:
 
-- Provider config: `providerOptions.envPrefix = 'APP_'`
 - Env var: `CF_R2_ENV_PREFIX=APP_`
 
 Resolution order:

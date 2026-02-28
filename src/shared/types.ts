@@ -21,7 +21,6 @@ export interface ProviderUploadFile {
 }
 
 export interface RawPluginConfig {
-  envPrefix?: string;
   accountId?: string;
   bucket?: string;
   endpoint?: string;

@@ -25,26 +25,6 @@ describe('resolvePluginConfig', () => {
     expect(() => resolvePluginConfig({}, {})).toThrow(/Missing required configuration/);
   });
 
-  it('uses prefixed environment variables when envPrefix is provided in provider options', () => {
-    const result = resolvePluginConfig(
-      {
-        envPrefix: 'APP',
-      },
-      {
-        APP_CF_R2_ACCOUNT_ID: 'acc_prefixed',
-        APP_CF_R2_BUCKET: 'bucket_prefixed',
-        APP_CF_R2_ACCESS_KEY_ID: 'key_prefixed',
-        APP_CF_R2_SECRET_ACCESS_KEY: 'secret_prefixed',
-        APP_CF_PUBLIC_BASE_URL: 'https://prefixed.example.com',
-      }
-    );
-
-    expect(result.envPrefix).toBe('APP_');
-    expect(result.accountId).toBe('acc_prefixed');
-    expect(result.bucket).toBe('bucket_prefixed');
-    expect(result.publicBaseUrl).toBe('https://prefixed.example.com');
-  });
-
   it('uses prefixed environment variables when CF_R2_ENV_PREFIX is set', () => {
     const result = resolvePluginConfig(
       {},
@@ -63,12 +43,30 @@ describe('resolvePluginConfig', () => {
     expect(result.bucket).toBe('bucket_custom');
   });
 
+  it('normalizes CF_R2_ENV_PREFIX when underscore is omitted', () => {
+    const result = resolvePluginConfig(
+      {},
+      {
+        CF_R2_ENV_PREFIX: 'CMS',
+        CMS_CF_R2_ACCOUNT_ID: 'acc_cms',
+        CMS_CF_R2_BUCKET: 'bucket_cms',
+        CMS_CF_R2_ACCESS_KEY_ID: 'key_cms',
+        CMS_CF_R2_SECRET_ACCESS_KEY: 'secret_cms',
+        CMS_CF_PUBLIC_BASE_URL: 'https://cms.example.com',
+      }
+    );
+
+    expect(result.envPrefix).toBe('CMS_');
+    expect(result.bucket).toBe('bucket_cms');
+  });
+
   it('falls back to unprefixed variables if prefixed ones are missing', () => {
     const result = resolvePluginConfig(
+      {},
       {
-        envPrefix: 'MISSING',
-      },
-      baseEnv
+        ...baseEnv,
+        CF_R2_ENV_PREFIX: 'MISSING',
+      }
     );
 
     expect(result.envPrefix).toBe('MISSING_');

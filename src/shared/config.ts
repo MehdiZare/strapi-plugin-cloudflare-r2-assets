@@ -104,7 +104,7 @@ const assertPresent = (value: string | undefined, key: string): string => {
 };
 
 export const resolvePluginConfig = (options: RawPluginConfig = {}, env: NodeJS.ProcessEnv = process.env): ResolvedPluginConfig => {
-  const envPrefix = normalizeEnvPrefix(options.envPrefix ?? toTrimmedOrUndefined(env.CF_R2_ENV_PREFIX));
+  const envPrefix = normalizeEnvPrefix(toTrimmedOrUndefined(env.CF_R2_ENV_PREFIX));
   const getEnv = (key: string): string | undefined => {
     const prefixed = envPrefix ? toTrimmedOrUndefined(env[`${envPrefix}${key}`]) : undefined;
     return prefixed ?? toTrimmedOrUndefined(env[key]);

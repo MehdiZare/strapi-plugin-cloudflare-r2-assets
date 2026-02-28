@@ -72,7 +72,6 @@ export default () => ({
     config: {
       provider: 'strapi-plugin-cloudflare-r2-assets',
       providerOptions: {
-        envPrefix: 'APP_',
         basePath: 'uploads',
         formats: ['webp', 'avif'],
         quality: 82,
@@ -83,7 +82,7 @@ export default () => ({
 });
 ```
 
-With `envPrefix: 'APP_'`, the plugin resolves values from prefixed keys first (`APP_CF_R2_ACCOUNT_ID`, `APP_CF_R2_BUCKET`, ...), then falls back to unprefixed keys if missing.
+Set `CF_R2_ENV_PREFIX` to resolve prefixed values. For example, with `CF_R2_ENV_PREFIX=CMS_`, the plugin resolves `CMS_CF_R2_ACCOUNT_ID`, `CMS_CF_R2_BUCKET`, etc., and then falls back to unprefixed keys when needed.
 
 ## Admin page
 
@@ -177,21 +176,31 @@ Required release artifacts:
 - A separate full-graph audit runs in CI for visibility and does not block releases
 - This keeps package release gating aligned with shipped runtime risk for this plugin package
 
-## Upstream advisory: Strapi Koa dependency
+## Upstream advisory: Strapi dependency alerts
 
-Strapi `5.37.1` currently resolves Koa below the patched version for `GHSA-7gcc-r8m5-44qm` / `CVE-2026-27959`.
+Supply-chain scanners (e.g. Socket.dev) may flag high alerts on this plugin's dependency tree. All current alerts originate from **upstream Strapi peer/dev dependencies**, not from this plugin's production code (which depends only on `@aws-sdk/client-s3`).
 
-Until Strapi publishes a fixed release, add an app-level override in your Strapi project:
+| Alert | Package | Source | Notes |
+|-------|---------|--------|-------|
+| CVE-2026-27959 | `koa@2.16.3` | `@strapi/admin`, `@strapi/types` | Strapi pins Koa below patched version |
+| CVE-2026-27903 | `minimatch@10.2.2` | `@strapi/cloud-cli` | Strapi pins minimatch below patched version |
+| Obfuscated code | `entities@4.5.0` | `sanitize-html` → Strapi | False positive — generated lookup tables |
+| Obfuscated code | `vite@5.4.21` | `@strapi/strapi` | False positive — bundled/minified dist files |
+
+**CVE mitigations.** Until Strapi publishes a fixed release, add app-level overrides in your Strapi project's `package.json`:
 
 ```json
 {
   "overrides": {
-    "koa": ">=2.16.4"
+    "koa": ">=2.16.4",
+    "minimatch": ">=10.2.3"
   }
 }
 ```
 
-Then reinstall dependencies and redeploy.
+Then reinstall dependencies and redeploy. These overrides resolve the vulnerable versions locally but do not affect how scanners evaluate the published package's declared dependency tree.
+
+**Obfuscated code alerts.** The `entities` and `vite` flags are false positives on legitimate generated/bundled code patterns and cannot be resolved by this plugin or by Strapi.
 
 ## License
 

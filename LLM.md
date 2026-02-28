@@ -69,12 +69,12 @@ Optional:
 
 ## Env prefix mode
 
-You can namespace env vars with a prefix.
+You can namespace env vars with `CF_R2_ENV_PREFIX`.
 
-In `providerOptions`:
+Example:
 
-```ts
-envPrefix: 'APP_'
+```bash
+CF_R2_ENV_PREFIX=APP_
 ```
 
 Then the plugin checks prefixed keys first:
@@ -154,6 +154,17 @@ git push && git push --tags
 ```
 
 Both lanes validate build/test/verify and artifact checks before publish.
+
+## Supply-chain alerts
+
+Supply-chain scanners (e.g. Socket.dev) may report high alerts against this plugin. All current alerts originate from upstream Strapi peer/dev dependencies — not from this plugin's sole production dependency (`@aws-sdk/client-s3`).
+
+Known alerts and mitigations:
+
+- **CVE-2026-27959** (`koa`) and **CVE-2026-27903** (`minimatch`): Strapi `5.37.1` pins versions below the patched releases. Add `"koa": ">=2.16.4"` and `"minimatch": ">=10.2.3"` to your Strapi project's `overrides` in `package.json`, then reinstall.
+- **Obfuscated code** (`entities`, `vite`): False positives on generated lookup tables and bundled dist files. No action needed.
+
+These alerts will clear when Strapi releases an update with patched transitive dependencies.
 
 ## Minimal troubleshooting prompt for LLMs
 

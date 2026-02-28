@@ -35,11 +35,13 @@ const toConfigErrorMessage = (error: unknown): string => {
 export default ({ strapi }: { strapi: StrapiLike }) => ({
   async getStatus(): Promise<SettingsStatusResponse> {
     const uploadConfig = strapi.config.get('plugin::upload', {}) as {
+      provider?: string;
+      providerOptions?: RawPluginConfig;
       config?: { provider?: string; providerOptions?: RawPluginConfig };
     };
 
-    const providerName = uploadConfig?.config?.provider;
-    const providerOptions = uploadConfig?.config?.providerOptions ?? {};
+    const providerName = uploadConfig?.provider ?? uploadConfig?.config?.provider;
+    const providerOptions = uploadConfig?.providerOptions ?? uploadConfig?.config?.providerOptions ?? {};
     const activeProvider = providerName === PROVIDER_PACKAGE_NAME || providerName === PLUGIN_ID;
 
     if (!activeProvider) {
@@ -61,14 +63,20 @@ export default ({ strapi }: { strapi: StrapiLike }) => ({
       config = resolvePluginConfig(providerOptions);
     } catch (error) {
       logWarning(strapi, 'Configuration validation failed', error);
+      const message = toConfigErrorMessage(error);
+      const isMissingConfig = message.includes('Missing required configuration');
+      const warnings =
+        isMissingConfig && !process.env.CF_R2_ENV_PREFIX
+          ? ['If your Cloudflare vars are prefixed (for example "CMS_"), set CF_R2_ENV_PREFIX=CMS_ and restart Strapi.']
+          : [];
 
       return {
         pluginId: PLUGIN_ID,
         providerName,
         activeProvider: true,
         configured: false,
-        warnings: [],
-        errors: [toConfigErrorMessage(error)],
+        warnings,
+        errors: [message],
       };
     }
 
