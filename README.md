@@ -154,7 +154,9 @@ Required release artifacts:
 - `dist/provider/index.js`
 - `dist/provider/index.mjs`
 - `dist/server/index.js`
+- `dist/server/index.mjs`
 - `dist/admin/index.js`
+- `dist/admin/index.mjs`
 
 ## Security defaults
 

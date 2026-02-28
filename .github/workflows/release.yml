@@ -66,6 +66,14 @@ jobs:
           git cat-file -e "${GITHUB_SHA}:dist/admin/index.js"
           git cat-file -e "${GITHUB_SHA}:dist/admin/index.mjs"
 
+      - name: Ensure tag commit is on main
+        run: |
+          git fetch origin main --depth=1
+          git merge-base --is-ancestor "${GITHUB_SHA}" "origin/main" || {
+            echo "Tag ${GITHUB_REF_NAME} is not on main. Aborting release."
+            exit 1
+          }
+
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:

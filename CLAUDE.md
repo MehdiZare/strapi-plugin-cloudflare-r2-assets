@@ -24,11 +24,11 @@ npm run watch:link     # dev mode with yalc link
 
 The package exposes three Strapi integration surfaces via `package.json` exports:
 
-| Export path        | Source                    | Build output              | Role                              |
-|--------------------|---------------------------|---------------------------|-----------------------------------|
-| `.` (root)         | `src/provider/index.ts`   | `dist/provider/index.js`  | Upload provider (R2 + image URLs) |
-| `./strapi-server`  | `server/src/index.ts`     | `dist/server/index.js`    | Server-side plugin (status API)   |
-| `./strapi-admin`   | `admin/src/index.ts`      | `dist/admin/index.js`     | Admin panel (diagnostics page)    |
+| Export path        | Source                    | Build output (CJS / ESM)                          | Role                              |
+|--------------------|---------------------------|---------------------------------------------------|-----------------------------------|
+| `.` (root)         | `src/provider/index.ts`   | `dist/provider/index.js` / `dist/provider/index.mjs` | Upload provider (R2 + image URLs) |
+| `./strapi-server`  | `server/src/index.ts`     | `dist/server/index.js` / `dist/server/index.mjs`     | Server-side plugin (status API)   |
+| `./strapi-admin`   | `admin/src/index.ts`      | `dist/admin/index.js` / `dist/admin/index.mjs`       | Admin panel (diagnostics page)    |
 
 ### Shared modules
 

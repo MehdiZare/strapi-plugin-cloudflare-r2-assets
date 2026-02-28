@@ -17,6 +17,7 @@ concurrency:
 
 jobs:
   prerelease:
+    if: github.ref == 'refs/heads/dev'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout

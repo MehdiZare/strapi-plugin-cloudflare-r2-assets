@@ -1,13 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-const requiredFiles = [
-  'dist/provider/index.js',
-  'dist/provider/index.mjs',
-  'dist/server/index.js',
-  'dist/admin/index.js',
-];
-
 const ensureFileExists = (relativePath) => {
   const fullPath = resolve(process.cwd(), relativePath);
   if (!existsSync(fullPath)) {
@@ -25,6 +18,8 @@ const exportExpectations = [
   { path: './strapi-server', field: 'require', value: './dist/server/index.js' },
   { path: './strapi-server', field: 'import', value: './dist/server/index.mjs' },
 ];
+
+const requiredFiles = [...new Set(exportExpectations.map((e) => e.value.replace(/^\.\//, '')))];
 
 for (const relativePath of requiredFiles) {
   ensureFileExists(relativePath);
