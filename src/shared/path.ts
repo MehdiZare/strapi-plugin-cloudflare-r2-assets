@@ -38,6 +38,15 @@ export const buildObjectKey = (basePath: string, nestedPath: string | undefined,
   return [safeBase, safeNested, safeFile].filter(Boolean).join('/');
 };
 
+export const isCloudflareTransformUrl = (fileUrl?: string): boolean => {
+  if (!fileUrl) return false;
+  try {
+    return new URL(fileUrl).pathname.includes('/cdn-cgi/image/');
+  } catch {
+    return false;
+  }
+};
+
 export const extractObjectKeyFromPublicUrl = (publicBaseUrl: string, fileUrl?: string): string | null => {
   if (!fileUrl) {
     return null;

@@ -4,7 +4,7 @@ import { DeleteObjectCommand, HeadBucketCommand, PutObjectCommand } from '@aws-s
 
 import { PLUGIN_ID, PROVIDER_PACKAGE_NAME } from '../shared/constants';
 import { resolvePluginConfig } from '../shared/config';
-import { buildObjectKey, extractObjectKeyFromPublicUrl, normalizeObjectKey } from '../shared/path';
+import { buildObjectKey, extractObjectKeyFromPublicUrl, isCloudflareTransformUrl, normalizeObjectKey } from '../shared/path';
 import { createS3Client } from '../shared/s3-client';
 import type { ProviderUploadFile, RawPluginConfig } from '../shared/types';
 import { buildPublicObjectUrl, buildResizedUrl } from '../shared/url-builder';
@@ -98,6 +98,10 @@ const provider = {
         await upload(file);
       },
       async delete(file: ProviderUploadFile) {
+        if (!file.provider_metadata && isCloudflareTransformUrl(file.url)) {
+          return;
+        }
+
         const metadataKey =
           typeof file.provider_metadata?.key === 'string' ? normalizeObjectKey(file.provider_metadata.key) : null;
         const keyFromUrl = extractObjectKeyFromPublicUrl(config.publicBaseUrl, file.url);
@@ -107,12 +111,17 @@ const provider = {
           return;
         }
 
-        await client.send(
-          new DeleteObjectCommand({
-            Bucket: config.bucket,
-            Key: objectKey,
-          })
-        );
+        try {
+          await client.send(
+            new DeleteObjectCommand({
+              Bucket: config.bucket,
+              Key: objectKey,
+            })
+          );
+        } catch (error) {
+          const detail = error instanceof Error ? error.message : String(error);
+          console.warn(`[${PLUGIN_ID}] Failed to delete object "${objectKey}" from bucket "${config.bucket}": ${detail}`);
+        }
       },
       isPrivate() {
         return false;

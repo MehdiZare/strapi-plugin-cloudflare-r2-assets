@@ -171,4 +171,69 @@ describe('provider delete', () => {
 
     expect(sendMock).not.toHaveBeenCalled();
   });
+
+  it('skips delete for format variant URLs (cdn-cgi transform, no provider_metadata)', async () => {
+    const instance = provider.init(baseOptions);
+
+    await instance.delete(
+      createFile({
+        url: 'https://media.example.com/cdn-cgi/image/format=webp,quality=82/uploads/abc123.jpg',
+        provider_metadata: undefined,
+      })
+    );
+
+    expect(sendMock).not.toHaveBeenCalled();
+  });
+
+  it('still deletes when provider_metadata exists even if URL looks like a transform URL', async () => {
+    const instance = provider.init(baseOptions);
+
+    await instance.delete(
+      createFile({
+        url: 'https://media.example.com/cdn-cgi/image/format=webp,quality=82/uploads/abc123.jpg',
+        provider_metadata: { key: 'uploads/abc123.jpg' },
+      })
+    );
+
+    expect(sendMock).toHaveBeenCalledTimes(1);
+    const command = sendMock.mock.calls[0]?.[0] as { input: { Key: string } };
+    expect(command.input.Key).toBe('uploads/abc123.jpg');
+  });
+
+  it('logs warning and does not throw when S3 delete fails', async () => {
+    sendMock.mockRejectedValueOnce(new Error('AccessDenied'));
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const instance = provider.init(baseOptions);
+
+    await expect(
+      instance.delete(
+        createFile({
+          url: 'https://media.example.com/uploads/abc123.jpg',
+        })
+      )
+    ).resolves.toBeUndefined();
+
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    warnSpy.mockRestore();
+  });
+
+  it('warning includes the object key and error message', async () => {
+    sendMock.mockRejectedValueOnce(new Error('NoSuchBucket'));
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const instance = provider.init(baseOptions);
+
+    await instance.delete(
+      createFile({
+        url: 'https://media.example.com/uploads/abc123.jpg',
+      })
+    );
+
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('uploads/abc123.jpg')
+    );
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('NoSuchBucket')
+    );
+    warnSpy.mockRestore();
+  });
 });
