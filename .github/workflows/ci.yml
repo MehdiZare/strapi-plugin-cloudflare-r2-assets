@@ -161,6 +161,32 @@ jobs:
           cd test-strapi-app
           npx strapi build
 
+      - name: Smoke-test admin UI
+        run: |
+          cd test-strapi-app
+          npx strapi start &
+          STRAPI_PID=$!
+
+          # Poll until Strapi responds or timeout after 60s
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:1337/admin > /dev/null 2>&1; then
+              echo "Admin UI responded OK on attempt $i"
+              kill $STRAPI_PID
+              exit 0
+            fi
+            sleep 1
+          done
+
+          echo "Admin UI did not respond within 60 seconds"
+          kill $STRAPI_PID 2>/dev/null || true
+          exit 1
+        env:
+          APP_KEYS: test-key-1,test-key-2
+          API_TOKEN_SALT: test-api-token-salt
+          ADMIN_JWT_SECRET: test-admin-jwt-secret
+          TRANSFER_TOKEN_SALT: test-transfer-token-salt
+          JWT_SECRET: test-jwt-secret
+
   ci-expected:
     name: CI Expected
     runs-on: ubuntu-latest
