@@ -145,7 +145,7 @@ jobs:
         run: npm pack
 
       - name: Upload package artifact
-        uses: actions/upload-artifact@v7.0.0
+        uses: actions/upload-artifact@v7
         with:
           name: npm-next-${{ steps.version.outputs.version }}
           path: |
