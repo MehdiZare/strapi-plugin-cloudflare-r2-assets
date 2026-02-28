@@ -14,6 +14,7 @@ npm test               # run vitest
 npm run build          # build plugin
 npm run verify         # strapi-plugin verify
 npm run check:artifacts # ensure dist/ contains required files
+npm run audit:check    # audit production deps (high+)
 npm run watch          # dev mode
 npm run watch:link     # dev mode with yalc link
 ```

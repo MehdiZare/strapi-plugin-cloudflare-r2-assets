@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Pre-push hook: audit production deps for high+ vulnerabilities.
+# Bypass (emergency only): git push --no-verify
+npm run audit:check

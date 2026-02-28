@@ -32,6 +32,19 @@ npm run watch
 npm run watch:link
 ```
 
+## Git hooks
+
+The repo uses `core.hooksPath` pointing to `.githooks/`. Hooks are configured
+automatically by `npm install` (via the `prepare` script).
+
+| Hook       | Purpose                                       |
+|------------|-----------------------------------------------|
+| `pre-push` | Audit production deps for high+ vulnerabilities |
+
+Bypass (emergency only): `git push --no-verify`
+
+Manual run: `npm run audit:check`
+
 ## Release workflow
 
 Release automation follows a `dev -> main` flow with label-driven versioning.
