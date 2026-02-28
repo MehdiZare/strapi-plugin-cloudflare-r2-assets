@@ -131,6 +131,16 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
+      - name: Ensure latest dist-tag does not point to a prerelease
+        run: |
+          LATEST="$(npm view strapi-plugin-cloudflare-r2-assets dist-tags.latest 2>/dev/null || true)"
+          if [ -n "$LATEST" ] && echo "$LATEST" | grep -q -- '-dev\.'; then
+            echo "::warning::latest dist-tag points to prerelease ($LATEST) — removing it"
+            npm dist-tag rm strapi-plugin-cloudflare-r2-assets latest || true
+          fi
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
       - name: Create package tarball
         run: npm pack
 
