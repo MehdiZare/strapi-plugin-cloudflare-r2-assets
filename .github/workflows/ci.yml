@@ -77,17 +77,106 @@ jobs:
       - name: Audit full dependency graph (informational)
         run: npm audit --json --audit-level=low || true
 
+  strapi-build:
+    name: Strapi Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6.2.0
+        with:
+          node-version: 22
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2.1.2
+        with:
+          bun-version: 1.3.10
+
+      - name: Build and pack plugin
+        run: bun install --frozen-lockfile && bun run build && npm pack
+
+      - name: Create test Strapi app
+        run: |
+          mkdir -p test-strapi-app/config
+
+          cat <<'HEREDOC_EOF' > test-strapi-app/package.json
+          {
+            "name": "test-strapi-app",
+            "private": true,
+            "scripts": {
+              "build": "strapi build"
+            },
+            "dependencies": {
+              "@strapi/strapi": "latest",
+              "better-sqlite3": "latest",
+              "react": "^18.0.0",
+              "react-dom": "^18.0.0",
+              "react-router-dom": "^6.0.0",
+              "styled-components": "^6.0.0"
+            }
+          }
+          HEREDOC_EOF
+
+          cat <<'HEREDOC_EOF' > test-strapi-app/config/database.ts
+          export default () => ({
+            connection: {
+              client: "better-sqlite3",
+              connection: { filename: ".tmp/data.db" },
+              useNullAsDefault: true,
+            },
+          });
+          HEREDOC_EOF
+
+          cat <<'HEREDOC_EOF' > test-strapi-app/config/plugins.ts
+          export default () => ({
+            "cloudflare-r2-assets": { enabled: true },
+          });
+          HEREDOC_EOF
+
+          cat <<'HEREDOC_EOF' > test-strapi-app/tsconfig.json
+          {
+            "compilerOptions": {
+              "target": "ES2020",
+              "module": "commonjs",
+              "moduleResolution": "node",
+              "esModuleInterop": true,
+              "strict": true,
+              "outDir": "dist",
+              "rootDir": "."
+            },
+            "include": ["config/**/*.ts"]
+          }
+          HEREDOC_EOF
+
+      - name: Install deps and plugin tarball
+        run: |
+          cd test-strapi-app
+          npm install
+          npm install ../strapi-plugin-cloudflare-r2-assets-*.tgz
+
+      - name: Run Strapi build
+        run: |
+          cd test-strapi-app
+          npx strapi build
+
   ci-expected:
     name: CI Expected
     runs-on: ubuntu-latest
     needs:
       - validate
+      - strapi-build
     if: ${{ always() }}
     steps:
       - name: Verify required jobs
         run: |
           if [ "${{ needs.validate.result }}" != "success" ]; then
             echo "validate job result: ${{ needs.validate.result }}"
+            exit 1
+          fi
+          if [ "${{ needs.strapi-build.result }}" != "success" ]; then
+            echo "strapi-build job result: ${{ needs.strapi-build.result }}"
             exit 1
           fi
           echo "All required CI checks passed."

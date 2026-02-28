@@ -8,8 +8,8 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pull-requests: read
+  contents: write
+  pull-requests: write
 
 concurrency:
   group: dev-release-${{ github.ref }}
@@ -141,6 +141,13 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
+      - name: Deprecate broken prerelease versions
+        run: |
+          npm deprecate "strapi-plugin-cloudflare-r2-assets@0.0.1-dev.22508101207" \
+            "Broken build — imports non-existent prefixPluginTranslations. Use @next or a stable release." || true
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
       - name: Create package tarball
         run: npm pack
 
@@ -168,3 +175,42 @@ jobs:
             echo "npm i strapi-plugin-cloudflare-r2-assets@next"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+  create-release-pr:
+    if: github.ref == 'refs/heads/dev'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
+          ref: dev
+
+      - name: Create or update release PR
+        uses: peter-evans/create-pull-request@v8.1.0
+        with:
+          branch: release/dev-to-main
+          base: main
+          title: 'Release: dev -> main'
+          labels: |
+            automated
+            release
+          delete-branch: false
+          body: |
+            ## Release Checklist
+
+            This is an automated release PR from `dev` to `main`.
+
+            ### Select release type
+            Apply exactly one label:
+            - `release:major`
+            - `release:minor`
+            - `release:patch`
+
+            ### Pre-merge checks
+            - [ ] CI passed
+            - [ ] `next` prerelease validated in staging
+            - [ ] docs/changelog verified
+
+            ### After merge
+            Stable release is published from a `v*` tag via `.github/workflows/release.yml`.
