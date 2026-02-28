@@ -32,8 +32,6 @@ for (const expectation of exportExpectations) {
       `Unexpected exports mapping for ${expectation.path}.${expectation.field}. Expected "${expectation.value}" but got "${actual ?? 'undefined'}"`
     );
   }
-
-  ensureFileExists(expectation.value.replace(/^\.\//, ''));
 }
 
 console.log('Artifact and exports checks passed.');

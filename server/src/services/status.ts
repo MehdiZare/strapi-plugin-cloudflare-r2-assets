@@ -13,9 +13,14 @@ type StrapiLike = {
   };
 };
 
+const redactSecrets = (input: string): string =>
+  input
+    .replace(/(secret(access)?key|access[_-]?key[_-]?id|token|password)\s*[:=]\s*([^\s,;]+)/gi, '$1=[REDACTED]')
+    .replace(/(authorization)\s*[:=]\s*([^\s,;]+)/gi, '$1=[REDACTED]');
+
 const logWarning = (strapi: StrapiLike, message: string, error: unknown) => {
   const detail = error instanceof Error ? error.message : String(error);
-  strapi.log?.warn?.(`[${PLUGIN_ID}] ${message}: ${detail}`);
+  strapi.log?.warn?.(`[${PLUGIN_ID}] ${message}: ${redactSecrets(detail)}`);
 };
 
 const toConfigErrorMessage = (error: unknown): string => {
