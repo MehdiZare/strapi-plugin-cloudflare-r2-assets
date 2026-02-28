@@ -67,7 +67,7 @@ const resolveObjectKey = (file: ProviderUploadFile, basePath: string) => {
   return buildObjectKey(basePath, file.path, `${file.hash}${ext}`);
 };
 
-export default {
+const provider = {
   init(providerOptions: RawPluginConfig = {}) {
     const { client, config } = createS3Client(providerOptions);
 
@@ -132,3 +132,9 @@ export default {
     };
   },
 };
+
+// Named export for CJS consumers: require('...').init
+export const { init } = provider;
+
+// Default export for ESM consumers: import provider from '...'
+export default provider;

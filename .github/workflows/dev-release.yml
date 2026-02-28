@@ -122,7 +122,7 @@ jobs:
       - name: Audit production dependencies (high+)
         run: |
           set -euo pipefail
-          if ! output="$(npm audit --omit=dev --audit-level=high 2>&1)"; then
+          if ! output="$(npm audit --omit=dev --omit=peer --omit=optional --audit-level=high 2>&1)"; then
             echo "$output"
             if echo "$output" | grep -qiE 'ENOTFOUND|EAI_AGAIN|ECONNRESET|timed out|audit endpoint returned an error'; then
               echo "Skipping npm audit due transient registry/network error."

@@ -17,6 +17,12 @@
   },
   "license": "MIT",
   "author": "Mehdi Zare",
+  "bugs": {
+    "url": "https://github.com/MehdiZare/strapi-plugin-cloudflare-r2-assets/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "main": "./dist/provider/index.js",
   "types": "./src/provider/index.d.ts",
   "files": [

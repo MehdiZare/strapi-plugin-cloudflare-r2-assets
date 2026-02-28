@@ -1,5 +1,9 @@
 # strapi-plugin-cloudflare-r2-assets
 
+[![npm version](https://img.shields.io/npm/v/strapi-plugin-cloudflare-r2-assets)](https://www.npmjs.com/package/strapi-plugin-cloudflare-r2-assets)
+[![CI](https://github.com/MehdiZare/strapi-plugin-cloudflare-r2-assets/actions/workflows/ci.yml/badge.svg)](https://github.com/MehdiZare/strapi-plugin-cloudflare-r2-assets/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+
 Strapi 5 plugin + upload provider that stores assets in Cloudflare R2 and generates Cloudflare edge image resizing URLs.
 
 ## Guides
@@ -163,6 +167,12 @@ Required release artifacts:
 - Admin diagnostics route is gated by explicit plugin read permission
 - Bucket-check errors are sanitized before being returned to the admin UI
 - URL-derived delete fallbacks require exact origin match with `CF_PUBLIC_BASE_URL`
+
+## CI security audit policy
+
+- Blocking audit scope is runtime-only: `npm audit --omit=dev --omit=peer --omit=optional --audit-level=high`
+- A separate full-graph audit runs in CI for visibility and does not block releases
+- This keeps package release gating aligned with shipped runtime risk for this plugin package
 
 ## License
 
