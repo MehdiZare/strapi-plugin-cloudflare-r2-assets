@@ -10,13 +10,23 @@ import type { AllowedImageFormat, RawPluginConfig, ResolvedPluginConfig } from '
 
 const ALLOWED_FORMAT_SET = new Set<string>(ALLOWED_IMAGE_FORMATS);
 
-const parseInteger = (value?: string): number | undefined => {
+const parseInteger = (name: string, value?: string): number | undefined => {
   if (!value) {
     return undefined;
   }
 
-  const parsed = Number.parseInt(value, 10);
-  return Number.isNaN(parsed) ? undefined : parsed;
+  const normalized = value.trim();
+
+  if (!/^-?\d+$/.test(normalized)) {
+    throw new Error(`[${PLUGIN_ID}] ${name} must be an integer.`);
+  }
+
+  const parsed = Number(normalized);
+  if (!Number.isSafeInteger(parsed)) {
+    throw new Error(`[${PLUGIN_ID}] ${name} must be a safe integer.`);
+  }
+
+  return parsed;
 };
 
 const toTrimmedOrUndefined = (value?: string): string | undefined => {
@@ -76,10 +86,25 @@ const normalizeFormats = (formats: string[], maxFormats: number): AllowedImageFo
   return unique;
 };
 
+const isValidHttpUrl = (value: string): boolean => {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' || url.protocol === 'http:';
+  } catch {
+    return false;
+  }
+};
+
 const maskSuffix = (value: string) => (value.length <= 4 ? value : value.slice(-4));
+const assertPresent = (value: string | undefined, key: string): string => {
+  if (!value) {
+    throw new Error(`[${PLUGIN_ID}] Missing required configuration: ${key}`);
+  }
+  return value;
+};
 
 export const resolvePluginConfig = (options: RawPluginConfig = {}, env: NodeJS.ProcessEnv = process.env): ResolvedPluginConfig => {
-  const envPrefix = normalizeEnvPrefix(options.envPrefix ?? toTrimmedOrUndefined(env.CF_R2_ENV_PREFIX));
+  const envPrefix = normalizeEnvPrefix(toTrimmedOrUndefined(env.CF_R2_ENV_PREFIX));
   const getEnv = (key: string): string | undefined => {
     const prefixed = envPrefix ? toTrimmedOrUndefined(env[`${envPrefix}${key}`]) : undefined;
     return prefixed ?? toTrimmedOrUndefined(env[key]);
@@ -97,8 +122,8 @@ export const resolvePluginConfig = (options: RawPluginConfig = {}, env: NodeJS.P
     getEnv('CF_R2_ENDPOINT') ??
     (accountId ? `https://${accountId}.r2.cloudflarestorage.com` : undefined);
 
-  const maxFormats = options.maxFormats ?? parseInteger(getEnv('CF_IMAGE_MAX_FORMATS')) ?? DEFAULT_MAX_FORMATS;
-  const quality = options.quality ?? parseInteger(getEnv('CF_IMAGE_QUALITY')) ?? DEFAULT_QUALITY;
+  const maxFormats = options.maxFormats ?? parseInteger('CF_IMAGE_MAX_FORMATS', getEnv('CF_IMAGE_MAX_FORMATS')) ?? DEFAULT_MAX_FORMATS;
+  const quality = options.quality ?? parseInteger('CF_IMAGE_QUALITY', getEnv('CF_IMAGE_QUALITY')) ?? DEFAULT_QUALITY;
   const basePath = toTrimmedOrUndefined(options.basePath) ?? getEnv('CF_R2_BASE_PATH') ?? DEFAULT_BASE_PATH;
   const cacheControl = toTrimmedOrUndefined(options.cacheControl) ?? getEnv('CF_R2_CACHE_CONTROL');
 
@@ -118,6 +143,14 @@ export const resolvePluginConfig = (options: RawPluginConfig = {}, env: NodeJS.P
     throw new Error(`[${PLUGIN_ID}] Missing required configuration: ${missing.join(', ')}`);
   }
 
+  if (!Number.isInteger(maxFormats)) {
+    throw new Error(`[${PLUGIN_ID}] maxFormats must be an integer.`);
+  }
+
+  if (!Number.isInteger(quality)) {
+    throw new Error(`[${PLUGIN_ID}] quality must be an integer.`);
+  }
+
   if (maxFormats < 1 || maxFormats > 10) {
     throw new Error(`[${PLUGIN_ID}] maxFormats must be between 1 and 10.`);
   }
@@ -126,14 +159,29 @@ export const resolvePluginConfig = (options: RawPluginConfig = {}, env: NodeJS.P
     throw new Error(`[${PLUGIN_ID}] quality must be between 1 and 100.`);
   }
 
+  const resolvedAccountId = assertPresent(accountId, 'CF_R2_ACCOUNT_ID');
+  const resolvedBucket = assertPresent(bucket, 'CF_R2_BUCKET');
+  const resolvedEndpoint = assertPresent(endpoint, 'CF_R2_ENDPOINT');
+  const resolvedAccessKeyId = assertPresent(accessKeyId, 'CF_R2_ACCESS_KEY_ID');
+  const resolvedSecretAccessKey = assertPresent(secretAccessKey, 'CF_R2_SECRET_ACCESS_KEY');
+  const resolvedPublicBaseUrl = assertPresent(publicBaseUrl, 'CF_PUBLIC_BASE_URL');
+
+  if (!isValidHttpUrl(resolvedPublicBaseUrl)) {
+    throw new Error(`[${PLUGIN_ID}] CF_PUBLIC_BASE_URL must be a valid http(s) URL.`);
+  }
+
+  if (!isValidHttpUrl(resolvedEndpoint)) {
+    throw new Error(`[${PLUGIN_ID}] CF_R2_ENDPOINT must be a valid http(s) URL.`);
+  }
+
   return {
     envPrefix,
-    accountId,
-    bucket,
-    endpoint,
-    accessKeyId,
-    secretAccessKey,
-    publicBaseUrl: publicBaseUrl.replace(/\/+$/g, ''),
+    accountId: resolvedAccountId,
+    bucket: resolvedBucket,
+    endpoint: resolvedEndpoint,
+    accessKeyId: resolvedAccessKeyId,
+    secretAccessKey: resolvedSecretAccessKey,
+    publicBaseUrl: resolvedPublicBaseUrl.replace(/\/+$/g, ''),
     basePath,
     formats,
     quality,
@@ -142,12 +190,20 @@ export const resolvePluginConfig = (options: RawPluginConfig = {}, env: NodeJS.P
   };
 };
 
+const maskEndpointAccountId = (endpoint: string, accountId: string): string => {
+  if (!accountId || !endpoint.includes(accountId)) {
+    return endpoint;
+  }
+  const masked = `****${maskSuffix(accountId)}`;
+  return endpoint.replace(accountId, masked);
+};
+
 export const toPublicConfig = (config: ResolvedPluginConfig) => {
   return {
     envPrefix: config.envPrefix,
     bucket: config.bucket,
     accountIdSuffix: maskSuffix(config.accountId),
-    endpoint: config.endpoint,
+    endpoint: maskEndpointAccountId(config.endpoint, config.accountId),
     publicBaseUrl: config.publicBaseUrl,
     basePath: config.basePath,
     formats: config.formats,

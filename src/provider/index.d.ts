@@ -9,4 +9,5 @@ declare const provider: {
   };
 };
 
+export declare const init: typeof provider.init;
 export default provider;

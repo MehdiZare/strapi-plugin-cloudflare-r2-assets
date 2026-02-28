@@ -22,6 +22,7 @@ npm install
 npm test
 npm run build
 npm run verify
+npm run check:artifacts
 ```
 
 For local plugin development:
@@ -30,6 +31,56 @@ For local plugin development:
 npm run watch
 npm run watch:link
 ```
+
+## Git hooks
+
+The repo uses `core.hooksPath` pointing to `.githooks/`. Hooks are configured
+automatically by `npm install` (via the `prepare` script).
+
+| Hook       | Purpose                                       |
+|------------|-----------------------------------------------|
+| `pre-push` | Audit production deps for high+ vulnerabilities |
+
+Bypass (emergency only): `git push --no-verify`
+
+Manual run: `npm run audit:check`
+
+## Release workflow
+
+Release automation follows a `dev -> main` flow with label-driven versioning.
+
+Prerelease lane:
+
+- `dev-release.yml` runs on `dev`
+- reads release type from labels on open `dev -> main` PR:
+  - `release:major`
+  - `release:minor`
+  - `release:patch`
+- publishes prerelease package to npm `next`
+
+Stable lane:
+
+- use version scripts to create stable `v*` tag:
+
+```bash
+npm run release:patch
+# or release:minor / release:major
+git push && git push --tags
+```
+
+Then `release.yml` publishes to npm `latest`.
+
+Release invariants (both lanes):
+
+- `preversion` runs release checks
+- `version` force-adds `dist/**` for release commit
+- Tags must include required artifacts in commit tree:
+  - `dist/provider/index.js`
+  - `dist/provider/index.mjs`
+  - `dist/server/index.js`
+  - `dist/server/index.mjs`
+  - `dist/admin/index.js`
+  - `dist/admin/index.mjs`
 
 ## How to use in a Strapi app (local link)
 
@@ -84,11 +135,10 @@ Optional:
 - `CF_R2_CACHE_CONTROL`
 - `CF_R2_ENV_PREFIX`
 
-### Prefix support (`envPrefix`)
+### Prefix support
 
-Agents can configure prefixed env resolution in either way:
+Prefixed env resolution is configured via environment variable only:
 
-- Provider config: `providerOptions.envPrefix = 'APP_'`
 - Env var: `CF_R2_ENV_PREFIX=APP_`
 
 Resolution order:

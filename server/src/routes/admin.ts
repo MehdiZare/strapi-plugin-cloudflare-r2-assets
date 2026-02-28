@@ -1,3 +1,5 @@
+import { SETTINGS_READ_ACTION } from '../../../src/shared/constants';
+
 export default {
   type: 'admin',
   routes: [
@@ -6,9 +8,15 @@ export default {
       path: '/settings/status',
       handler: 'settings.status',
       config: {
-        policies: [],
+        policies: [
+          {
+            name: 'admin::hasPermissions',
+            config: {
+              actions: [SETTINGS_READ_ACTION],
+            },
+          },
+        ],
       },
     },
   ],
 };
-

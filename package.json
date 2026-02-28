@@ -10,13 +10,19 @@
     "r2",
     "image-resizing"
   ],
-  "homepage": "https://github.com/your-org/strapi-plugin-cloudflare-r2-assets",
+  "homepage": "https://github.com/MehdiZare/strapi-plugin-cloudflare-r2-assets",
   "repository": {
     "type": "git",
-    "url": "https://github.com/your-org/strapi-plugin-cloudflare-r2-assets.git"
+    "url": "https://github.com/MehdiZare/strapi-plugin-cloudflare-r2-assets.git"
   },
   "license": "MIT",
-  "author": "Your Name",
+  "author": "Mehdi Zare",
+  "bugs": {
+    "url": "https://github.com/MehdiZare/strapi-plugin-cloudflare-r2-assets/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "main": "./dist/provider/index.js",
   "types": "./src/provider/index.d.ts",
   "files": [
@@ -51,26 +57,43 @@
     "watch:link": "strapi-plugin watch:link",
     "verify": "strapi-plugin verify",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "check:artifacts": "node ./scripts/check-artifacts.mjs",
+    "release:check": "bun ci && bun run build && npm run typecheck && npm test && npm run verify && npm run check:artifacts",
+    "release:patch": "npm version patch -m \"chore(release): v%s\"",
+    "release:minor": "npm version minor -m \"chore(release): v%s\"",
+    "release:major": "npm version major -m \"chore(release): v%s\"",
+    "preversion": "npm run release:check",
+    "version": "bun run build && npm run check:artifacts && git add -f dist package.json bun.lock",
+    "postversion": "echo \"Release commit and tag created. Push with: git push && git push --tags\"",
+    "audit:check": "bash scripts/audit-production.sh",
+    "prepare": "git config core.hooksPath .githooks || true"
   },
   "dependencies": {
-    "@aws-sdk/client-s3": "^3.821.0",
-    "zod": "^3.24.1"
+    "@aws-sdk/client-s3": "^3.1000.0"
   },
   "devDependencies": {
     "@strapi/sdk-plugin": "^6.0.0",
-    "@types/node": "^22.10.5",
-    "@types/react": "^18.3.18",
-    "@types/react-dom": "^18.3.5",
-    "typescript": "^5.7.2",
-    "vitest": "^2.1.8"
+    "@types/node": "^24.0.0",
+    "@types/react": "^18.3.28",
+    "@types/react-dom": "^18.3.7",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
   },
   "peerDependencies": {
-    "@strapi/strapi": "^5.0.0",
+    "@strapi/admin": "^5.37.1",
+    "@strapi/strapi": "^5.37.1",
     "react": "^18.0.0",
     "react-dom": "^18.0.0",
     "react-router-dom": "^6.0.0",
     "styled-components": "^6.0.0"
+  },
+  "overrides": {
+    "koa": ">=2.16.4",
+    "minimatch": ">=10.2.3",
+    "fast-xml-parser": ">=5.3.8",
+    "esbuild": ">=0.25.0"
   },
   "engines": {
     "node": ">=20.0.0 <21 || >=22.0.0 <=24.x.x",

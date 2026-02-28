@@ -1,33 +1,47 @@
-import { HeadBucketCommand, S3Client } from '@aws-sdk/client-s3';
+import { HeadBucketCommand } from '@aws-sdk/client-s3';
 
 import { PLUGIN_ID, PROVIDER_PACKAGE_NAME } from '../../../src/shared/constants';
 import { resolvePluginConfig, toPublicConfig } from '../../../src/shared/config';
+import { createS3Client } from '../../../src/shared/s3-client';
 import type { RawPluginConfig, SettingsStatusResponse } from '../../../src/shared/types';
 
 type StrapiLike = {
   config: {
     get: (key: string, defaultValue?: unknown) => any;
   };
+  log?: {
+    warn?: (message: string) => void;
+  };
 };
 
-const createS3Client = (config: ReturnType<typeof resolvePluginConfig>) =>
-  new S3Client({
-    endpoint: config.endpoint,
-    region: 'auto',
-    credentials: {
-      accessKeyId: config.accessKeyId,
-      secretAccessKey: config.secretAccessKey,
-    },
-  });
+const redactSecrets = (input: string): string =>
+  input
+    .replace(/(secret(access)?key|access[_-]?key[_-]?id|token|password)\s*[:=]\s*([^\s,;]+)/gi, '$1=[REDACTED]')
+    .replace(/(authorization)\s*[:=]\s*([^\s,;]+)/gi, '$1=[REDACTED]');
+
+const logWarning = (strapi: StrapiLike, message: string, error: unknown) => {
+  const detail = error instanceof Error ? error.message : String(error);
+  strapi.log?.warn?.(`[${PLUGIN_ID}] ${message}: ${redactSecrets(detail)}`);
+};
+
+const toConfigErrorMessage = (error: unknown): string => {
+  if (!(error instanceof Error)) {
+    return 'Invalid Cloudflare provider configuration.';
+  }
+
+  return error.message.startsWith(`[${PLUGIN_ID}]`) ? error.message : 'Invalid Cloudflare provider configuration.';
+};
 
 export default ({ strapi }: { strapi: StrapiLike }) => ({
   async getStatus(): Promise<SettingsStatusResponse> {
     const uploadConfig = strapi.config.get('plugin::upload', {}) as {
+      provider?: string;
+      providerOptions?: RawPluginConfig;
       config?: { provider?: string; providerOptions?: RawPluginConfig };
     };
 
-    const providerName = uploadConfig?.config?.provider;
-    const providerOptions = uploadConfig?.config?.providerOptions ?? {};
+    const providerName = uploadConfig?.provider ?? uploadConfig?.config?.provider;
+    const providerOptions = uploadConfig?.providerOptions ?? uploadConfig?.config?.providerOptions ?? {};
     const activeProvider = providerName === PROVIDER_PACKAGE_NAME || providerName === PLUGIN_ID;
 
     if (!activeProvider) {
@@ -48,13 +62,21 @@ export default ({ strapi }: { strapi: StrapiLike }) => ({
     try {
       config = resolvePluginConfig(providerOptions);
     } catch (error) {
+      logWarning(strapi, 'Configuration validation failed', error);
+      const message = toConfigErrorMessage(error);
+      const isMissingConfig = message.includes('Missing required configuration');
+      const warnings =
+        isMissingConfig && !process.env.CF_R2_ENV_PREFIX
+          ? ['If your Cloudflare vars are prefixed (for example "CMS_"), set CF_R2_ENV_PREFIX=CMS_ and restart Strapi.']
+          : [];
+
       return {
         pluginId: PLUGIN_ID,
         providerName,
         activeProvider: true,
         configured: false,
-        warnings: [],
-        errors: [error instanceof Error ? error.message : 'Invalid Cloudflare provider configuration'],
+        warnings,
+        errors: [message],
       };
     }
 
@@ -79,6 +101,8 @@ export default ({ strapi }: { strapi: StrapiLike }) => ({
         },
       };
     } catch (error) {
+      logWarning(strapi, 'Bucket connectivity check failed', error);
+
       return {
         pluginId: PLUGIN_ID,
         providerName,
@@ -91,10 +115,9 @@ export default ({ strapi }: { strapi: StrapiLike }) => ({
           ok: false,
           checkedAt: new Date().toISOString(),
           bucketReachable: false,
-          detail: error instanceof Error ? error.message : 'Could not reach configured bucket.',
+          detail: 'Bucket connectivity check failed. Verify bucket name, endpoint, and credentials.',
         },
       };
     }
   },
 });
-

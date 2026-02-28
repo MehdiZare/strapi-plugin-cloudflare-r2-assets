@@ -69,12 +69,12 @@ Optional:
 
 ## Env prefix mode
 
-You can namespace env vars with a prefix.
+You can namespace env vars with `CF_R2_ENV_PREFIX`.
 
-In `providerOptions`:
+Example:
 
-```ts
-envPrefix: 'APP_'
+```bash
+CF_R2_ENV_PREFIX=APP_
 ```
 
 Then the plugin checks prefixed keys first:
@@ -122,6 +122,49 @@ npm run develop
 - Forgetting to proxy `CF_PUBLIC_BASE_URL` through Cloudflare
 - Missing required env vars
 - Setting provider name incorrectly in `config/plugins.ts`
+
+## Release commands
+
+This repo has two release lanes:
+
+1. **Prerelease lane (`next`)**
+- Triggered by pushes to `dev` via `dev-release.yml`
+- Release type comes from label on the open `dev -> main` release PR:
+  - `release:major`
+  - `release:minor`
+  - `release:patch`
+- Publishes prerelease package to npm with tag `next`
+
+Install prerelease:
+
+```bash
+npm i strapi-plugin-cloudflare-r2-assets@next
+```
+
+2. **Stable lane (`latest`)**
+- Triggered by `v*` tags via `release.yml`
+- Publishes stable package to npm `latest`
+
+To cut stable tags locally:
+
+```bash
+npm run release:patch
+# or release:minor / release:major
+git push && git push --tags
+```
+
+Both lanes validate build/test/verify and artifact checks before publish.
+
+## Supply-chain alerts
+
+Supply-chain scanners (e.g. Socket.dev) may report high alerts against this plugin. All current alerts originate from upstream Strapi peer/dev dependencies — not from this plugin's sole production dependency (`@aws-sdk/client-s3`).
+
+Known alerts and mitigations:
+
+- **CVE-2026-27959** (`koa`) and **CVE-2026-27903** (`minimatch`): Strapi `5.37.1` pins versions below the patched releases. Add `"koa": ">=2.16.4"` and `"minimatch": ">=10.2.3"` to your Strapi project's `overrides` in `package.json`, then reinstall.
+- **Obfuscated code** (`entities`, `vite`): False positives on generated lookup tables and bundled dist files. No action needed.
+
+These alerts will clear when Strapi releases an update with patched transitive dependencies.
 
 ## Minimal troubleshooting prompt for LLMs
 

@@ -1,25 +1,19 @@
-import { DeleteObjectCommand, HeadBucketCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import type { Readable } from 'node:stream';
+
+import { DeleteObjectCommand, HeadBucketCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 
 import { PLUGIN_ID, PROVIDER_PACKAGE_NAME } from '../shared/constants';
 import { resolvePluginConfig } from '../shared/config';
-import { buildObjectKey, extractObjectKeyFromPublicUrl } from '../shared/path';
+import { buildObjectKey, extractObjectKeyFromPublicUrl, normalizeObjectKey } from '../shared/path';
+import { createS3Client } from '../shared/s3-client';
 import type { ProviderUploadFile, RawPluginConfig } from '../shared/types';
 import { buildPublicObjectUrl, buildResizedUrl } from '../shared/url-builder';
 
 const isImageMimeType = (mime: string): boolean => mime.toLowerCase().startsWith('image/');
 
-const createS3Client = (options: RawPluginConfig = {}) => {
+const initProvider = (options: RawPluginConfig = {}) => {
   const config = resolvePluginConfig(options);
-
-  const client = new S3Client({
-    endpoint: config.endpoint,
-    region: 'auto',
-    credentials: {
-      accessKeyId: config.accessKeyId,
-      secretAccessKey: config.secretAccessKey,
-    },
-  });
-
+  const client = createS3Client(config);
   return { client, config };
 };
 
@@ -50,7 +44,7 @@ const buildDerivedFormats = (file: ProviderUploadFile, sourceUrl: string, option
   );
 };
 
-const resolveBody = (file: ProviderUploadFile): Buffer | NodeJS.ReadableStream => {
+const resolveBody = (file: ProviderUploadFile): Buffer | Readable => {
   if (file.buffer) {
     return file.buffer;
   }
@@ -67,9 +61,9 @@ const resolveObjectKey = (file: ProviderUploadFile, basePath: string) => {
   return buildObjectKey(basePath, file.path, `${file.hash}${ext}`);
 };
 
-export default {
+const provider = {
   init(providerOptions: RawPluginConfig = {}) {
-    const { client, config } = createS3Client(providerOptions);
+    const { client, config } = initProvider(providerOptions);
 
     const upload = async (file: ProviderUploadFile) => {
       const objectKey = resolveObjectKey(file, config.basePath);
@@ -104,7 +98,8 @@ export default {
         await upload(file);
       },
       async delete(file: ProviderUploadFile) {
-        const metadataKey = typeof file.provider_metadata?.key === 'string' ? file.provider_metadata.key : undefined;
+        const metadataKey =
+          typeof file.provider_metadata?.key === 'string' ? normalizeObjectKey(file.provider_metadata.key) : null;
         const keyFromUrl = extractObjectKeyFromPublicUrl(config.publicBaseUrl, file.url);
         const objectKey = metadataKey ?? keyFromUrl;
 
@@ -132,3 +127,8 @@ export default {
   },
 };
 
+// Named export for CJS consumers: require('...').init
+export const { init } = provider;
+
+// Default export for ESM consumers: import provider from '...'
+export default provider;
