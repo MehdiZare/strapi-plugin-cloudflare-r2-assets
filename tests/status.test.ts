@@ -23,7 +23,7 @@ vi.mock('@aws-sdk/client-s3', () => {
   };
 });
 
-import createStatusService from '../server/src/services/status';
+import createStatusService, { resetVersionCache } from '../server/src/services/status';
 
 const providerOptions = {
   accountId: 'acc_12345',
@@ -52,10 +52,14 @@ const createStrapi = (uploadConfig: unknown): MockStrapi => ({
 });
 
 const originalEnvPrefix = process.env.CF_R2_ENV_PREFIX;
+const fetchMock = vi.fn<typeof global.fetch>();
 
 describe('status service', () => {
   beforeEach(() => {
     sendMock.mockReset();
+    fetchMock.mockReset();
+    resetVersionCache();
+    global.fetch = fetchMock;
   });
 
   afterEach(() => {
@@ -155,6 +159,7 @@ describe('status service', () => {
 
   it('supports nested upload config shape for compatibility', async () => {
     sendMock.mockResolvedValueOnce({});
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ version: '0.1.0' })));
 
     const strapi = createStrapi({
       config: {
@@ -168,5 +173,84 @@ describe('status service', () => {
 
     expect(result.activeProvider).toBe(true);
     expect(result.configured).toBe(true);
+  });
+
+  describe('version check', () => {
+    it('includes versionCheck when npm registry responds successfully', async () => {
+      sendMock.mockResolvedValueOnce({});
+      fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ version: '0.2.0' })));
+
+      const strapi = createStrapi({
+        provider: 'strapi-plugin-cloudflare-r2-assets',
+        providerOptions,
+      });
+      const service = createStatusService({ strapi });
+      const result = await service.getStatus();
+
+      expect(result.versionCheck).toBeDefined();
+      expect(result.versionCheck!.currentVersion).toBe('0.1.0');
+      expect(result.versionCheck!.latestVersion).toBe('0.2.0');
+      expect(result.versionCheck!.updateAvailable).toBe(true);
+      expect(result.versionCheck!.checkedAt).toBeDefined();
+    });
+
+    it('sets updateAvailable to false when versions match', async () => {
+      sendMock.mockResolvedValueOnce({});
+      fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ version: '0.1.0' })));
+
+      const strapi = createStrapi({
+        provider: 'strapi-plugin-cloudflare-r2-assets',
+        providerOptions,
+      });
+      const service = createStatusService({ strapi });
+      const result = await service.getStatus();
+
+      expect(result.versionCheck).toBeDefined();
+      expect(result.versionCheck!.updateAvailable).toBe(false);
+    });
+
+    it('returns undefined versionCheck when npm fetch fails', async () => {
+      sendMock.mockResolvedValueOnce({});
+      fetchMock.mockRejectedValueOnce(new Error('network error'));
+
+      const strapi = createStrapi({
+        provider: 'strapi-plugin-cloudflare-r2-assets',
+        providerOptions,
+      });
+      const service = createStatusService({ strapi });
+      const result = await service.getStatus();
+
+      expect(result.versionCheck).toBeUndefined();
+    });
+
+    it('returns undefined versionCheck when npm returns non-ok response', async () => {
+      sendMock.mockResolvedValueOnce({});
+      fetchMock.mockResolvedValueOnce(new Response('not found', { status: 404 }));
+
+      const strapi = createStrapi({
+        provider: 'strapi-plugin-cloudflare-r2-assets',
+        providerOptions,
+      });
+      const service = createStatusService({ strapi });
+      const result = await service.getStatus();
+
+      expect(result.versionCheck).toBeUndefined();
+    });
+
+    it('caches npm registry response and does not fetch again within TTL', async () => {
+      sendMock.mockResolvedValue({});
+      fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ version: '0.2.0' })));
+
+      const strapi = createStrapi({
+        provider: 'strapi-plugin-cloudflare-r2-assets',
+        providerOptions,
+      });
+      const service = createStatusService({ strapi });
+
+      await service.getStatus();
+      await service.getStatus();
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
   });
 });

@@ -49,6 +49,13 @@ export interface ResolvedPluginConfig {
   cacheControl?: string;
 }
 
+export interface VersionCheck {
+  currentVersion: string;
+  latestVersion: string;
+  updateAvailable: boolean;
+  checkedAt: string;
+}
+
 export interface EnvKeyInfo {
   key: string;
   description: string;
@@ -83,4 +90,5 @@ export interface SettingsStatusResponse {
     bucketReachable: boolean;
     detail?: string;
   };
+  versionCheck?: VersionCheck;
 }

@@ -1,9 +1,9 @@
 import { HeadBucketCommand } from '@aws-sdk/client-s3';
 
-import { PLUGIN_ID, PROVIDER_PACKAGE_NAME } from '../../../src/shared/constants';
+import { PLUGIN_ID, PLUGIN_VERSION, PROVIDER_PACKAGE_NAME } from '../../../src/shared/constants';
 import { checkEnvKeys, resolvePluginConfig, toPublicConfig } from '../../../src/shared/config';
 import { createS3Client } from '../../../src/shared/s3-client';
-import type { RawPluginConfig, SettingsStatusResponse } from '../../../src/shared/types';
+import type { RawPluginConfig, SettingsStatusResponse, VersionCheck } from '../../../src/shared/types';
 
 type StrapiLike = {
   config: {
@@ -32,6 +32,56 @@ const toConfigErrorMessage = (error: unknown): string => {
   return error.message.startsWith(`[${PLUGIN_ID}]`) ? error.message : 'Invalid Cloudflare provider configuration.';
 };
 
+let versionCache: { latestVersion: string; fetchedAt: number } | null = null;
+const VERSION_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+const fetchLatestVersion = async (): Promise<string | null> => {
+  if (versionCache && Date.now() - versionCache.fetchedAt < VERSION_CACHE_TTL_MS) {
+    return versionCache.latestVersion;
+  }
+
+  try {
+    const response = await fetch(`https://registry.npmjs.org/${PROVIDER_PACKAGE_NAME}/latest`);
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const data = (await response.json()) as { version?: string };
+
+    if (typeof data.version !== 'string') {
+      return null;
+    }
+
+    versionCache = { latestVersion: data.version, fetchedAt: Date.now() };
+
+    return data.version;
+  } catch {
+    return null;
+  }
+};
+
+const buildVersionCheck = async (): Promise<VersionCheck | undefined> => {
+  const latestVersion = await fetchLatestVersion();
+
+  if (!latestVersion) {
+    return undefined;
+  }
+
+  return {
+    currentVersion: PLUGIN_VERSION,
+    latestVersion,
+    updateAvailable: latestVersion !== PLUGIN_VERSION,
+    checkedAt: new Date().toISOString(),
+  };
+};
+
+const resetVersionCache = () => {
+  versionCache = null;
+};
+
+export { versionCache, VERSION_CACHE_TTL_MS, fetchLatestVersion, resetVersionCache };
+
 export default ({ strapi }: { strapi: StrapiLike }) => ({
   async getStatus(): Promise<SettingsStatusResponse> {
     const uploadConfig = strapi.config.get('plugin::upload', {}) as {
@@ -44,6 +94,8 @@ export default ({ strapi }: { strapi: StrapiLike }) => ({
     const providerOptions = uploadConfig?.providerOptions ?? uploadConfig?.config?.providerOptions ?? {};
     const activeProvider = providerName === PROVIDER_PACKAGE_NAME || providerName === PLUGIN_ID;
 
+    const versionCheck = await buildVersionCheck();
+
     if (!activeProvider) {
       return {
         pluginId: PLUGIN_ID,
@@ -54,6 +106,7 @@ export default ({ strapi }: { strapi: StrapiLike }) => ({
           `Upload provider is currently "${providerName ?? 'not configured'}". Set it to "${PROVIDER_PACKAGE_NAME}".`,
         ],
         errors: [],
+        versionCheck,
       };
     }
 
@@ -78,6 +131,7 @@ export default ({ strapi }: { strapi: StrapiLike }) => ({
         warnings,
         errors: [message],
         envKeys: checkEnvKeys(providerOptions),
+        versionCheck,
       };
     }
 
@@ -101,6 +155,7 @@ export default ({ strapi }: { strapi: StrapiLike }) => ({
           bucketReachable: true,
           detail: 'Bucket is reachable with current credentials.',
         },
+        versionCheck,
       };
     } catch (error) {
       logWarning(strapi, 'Bucket connectivity check failed', error);
@@ -120,6 +175,7 @@ export default ({ strapi }: { strapi: StrapiLike }) => ({
           bucketReachable: false,
           detail: 'Bucket connectivity check failed. Verify bucket name, endpoint, and credentials.',
         },
+        versionCheck,
       };
     }
   },

@@ -1,5 +1,6 @@
 export const PLUGIN_ID = 'cloudflare-r2-assets';
 export const PROVIDER_PACKAGE_NAME = 'strapi-plugin-cloudflare-r2-assets';
+export const PLUGIN_VERSION = '0.1.0';
 export const SETTINGS_READ_ACTION = `plugin::${PLUGIN_ID}.read`;
 
 export const DEFAULT_IMAGE_FORMATS = ['webp', 'avif'] as const;

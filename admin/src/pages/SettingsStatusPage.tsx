@@ -1,6 +1,6 @@
 import type { JSX } from 'react';
 import { useEffect, useState } from 'react';
-import { Alert, Box, Divider, Flex, Loader, Typography } from '@strapi/design-system';
+import { Alert, Box, Divider, Flex, Link, Loader, Typography } from '@strapi/design-system';
 import { Layouts, Page, useFetchClient } from '@strapi/strapi/admin';
 
 import pluginId from '../pluginId';
@@ -98,6 +98,33 @@ const SettingsStatusPage = (): JSX.Element => {
 
           {state.status === 'success' ? (
             <Flex direction="column" alignItems="stretch" gap={4}>
+              {/* Section 0: Plugin Version */}
+              {state.data.versionCheck ? (
+                <StatusCard
+                  tone={state.data.versionCheck.updateAvailable ? 'warning' : 'ok'}
+                  title="Plugin Version"
+                  subtitle={
+                    state.data.versionCheck.updateAvailable
+                      ? `v${state.data.versionCheck.currentVersion} → v${state.data.versionCheck.latestVersion} available`
+                      : `v${state.data.versionCheck.currentVersion}`
+                  }
+                >
+                  {state.data.versionCheck.updateAvailable ? (
+                    <Flex direction="column" gap={2}>
+                      <Typography variant="pi" textColor="neutral700">
+                        Update with: <code>npm install strapi-plugin-cloudflare-r2-assets@latest</code>
+                      </Typography>
+                      <Link
+                        href="https://github.com/MehdiZare/strapi-plugin-cloudflare-r2-assets/releases"
+                        isExternal
+                      >
+                        View release notes
+                      </Link>
+                    </Flex>
+                  ) : null}
+                </StatusCard>
+              ) : null}
+
               {/* Section 1: Upload Provider */}
               {state.data.activeProvider ? (
                 <StatusCard
