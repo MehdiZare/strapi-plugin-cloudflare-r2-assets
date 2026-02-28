@@ -83,7 +83,7 @@ describe('provider upload', () => {
     const instance = provider.init(baseOptions);
     const file = createFile({ buffer: Buffer.from('data') });
 
-    const error = await instance.upload(file).catch((e: Error) => e);
+    const error = await instance.upload(file).catch((e: unknown) => e) as Error;
     expect(error).toBeInstanceOf(Error);
     expect(error.message).toContain('Failed to upload object "uploads/abc123.jpg" to bucket "media": AccessDenied');
     expect(error.cause).toBe(sdkError);
@@ -267,7 +267,7 @@ describe('provider healthCheck', () => {
     sendMock.mockRejectedValueOnce(sdkError);
     const instance = provider.init(baseOptions);
 
-    const error = await instance.healthCheck().catch((e: Error) => e);
+    const error = await instance.healthCheck().catch((e: unknown) => e) as Error;
     expect(error).toBeInstanceOf(Error);
     expect(error.message).toContain('Health check failed for bucket "media": NotFound');
     expect(error.cause).toBe(sdkError);
