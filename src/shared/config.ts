@@ -96,6 +96,12 @@ const isValidHttpUrl = (value: string): boolean => {
 };
 
 const maskSuffix = (value: string) => (value.length <= 4 ? value : value.slice(-4));
+const assertPresent = (value: string | undefined, key: string): string => {
+  if (!value) {
+    throw new Error(`[${PLUGIN_ID}] Missing required configuration: ${key}`);
+  }
+  return value;
+};
 
 export const resolvePluginConfig = (options: RawPluginConfig = {}, env: NodeJS.ProcessEnv = process.env): ResolvedPluginConfig => {
   const envPrefix = normalizeEnvPrefix(options.envPrefix ?? toTrimmedOrUndefined(env.CF_R2_ENV_PREFIX));
@@ -153,22 +159,29 @@ export const resolvePluginConfig = (options: RawPluginConfig = {}, env: NodeJS.P
     throw new Error(`[${PLUGIN_ID}] quality must be between 1 and 100.`);
   }
 
-  if (!isValidHttpUrl(publicBaseUrl)) {
+  const resolvedAccountId = assertPresent(accountId, 'CF_R2_ACCOUNT_ID');
+  const resolvedBucket = assertPresent(bucket, 'CF_R2_BUCKET');
+  const resolvedEndpoint = assertPresent(endpoint, 'CF_R2_ENDPOINT');
+  const resolvedAccessKeyId = assertPresent(accessKeyId, 'CF_R2_ACCESS_KEY_ID');
+  const resolvedSecretAccessKey = assertPresent(secretAccessKey, 'CF_R2_SECRET_ACCESS_KEY');
+  const resolvedPublicBaseUrl = assertPresent(publicBaseUrl, 'CF_PUBLIC_BASE_URL');
+
+  if (!isValidHttpUrl(resolvedPublicBaseUrl)) {
     throw new Error(`[${PLUGIN_ID}] CF_PUBLIC_BASE_URL must be a valid http(s) URL.`);
   }
 
-  if (!isValidHttpUrl(endpoint)) {
+  if (!isValidHttpUrl(resolvedEndpoint)) {
     throw new Error(`[${PLUGIN_ID}] CF_R2_ENDPOINT must be a valid http(s) URL.`);
   }
 
   return {
     envPrefix,
-    accountId,
-    bucket,
-    endpoint,
-    accessKeyId,
-    secretAccessKey,
-    publicBaseUrl: publicBaseUrl.replace(/\/+$/g, ''),
+    accountId: resolvedAccountId,
+    bucket: resolvedBucket,
+    endpoint: resolvedEndpoint,
+    accessKeyId: resolvedAccessKeyId,
+    secretAccessKey: resolvedSecretAccessKey,
+    publicBaseUrl: resolvedPublicBaseUrl.replace(/\/+$/g, ''),
     basePath,
     formats,
     quality,

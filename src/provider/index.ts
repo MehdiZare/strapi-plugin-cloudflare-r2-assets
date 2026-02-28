@@ -1,3 +1,5 @@
+import type { Readable } from 'node:stream';
+
 import { DeleteObjectCommand, HeadBucketCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 
 import { PLUGIN_ID, PROVIDER_PACKAGE_NAME } from '../shared/constants';
@@ -42,7 +44,7 @@ const buildDerivedFormats = (file: ProviderUploadFile, sourceUrl: string, option
   );
 };
 
-const resolveBody = (file: ProviderUploadFile): Buffer | NodeJS.ReadableStream => {
+const resolveBody = (file: ProviderUploadFile): Buffer | Readable => {
   if (file.buffer) {
     return file.buffer;
   }

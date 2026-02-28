@@ -5,7 +5,7 @@ set -euo pipefail
 
 if ! output="$(npm audit --omit=dev --omit=peer --omit=optional --audit-level=high 2>&1)"; then
   echo "$output"
-  if echo "$output" | grep -qiE 'ENOTFOUND|EAI_AGAIN|ECONNRESET|timed out|audit endpoint returned an error|ENOLOCK'; then
+  if echo "$output" | grep -qiE 'ENOTFOUND|EAI_AGAIN|ECONNRESET|timed out|audit endpoint returned an error'; then
     echo "Skipping npm audit due to transient registry/network error."
     exit 0
   fi

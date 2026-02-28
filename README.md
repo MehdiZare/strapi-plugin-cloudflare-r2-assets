@@ -103,6 +103,7 @@ Access to diagnostics requires the plugin read permission action:
 npm run watch
 npm run watch:link
 npm run build
+npm run typecheck
 npm run verify
 npm test
 ```
@@ -144,7 +145,7 @@ git push && git push --tags
 
 `release.yml` runs on `v*` tags and:
 
-- validates build/test/verify/artifact checks
+- validates build/typecheck/test/verify/artifact checks
 - verifies required dist artifacts exist in the tag commit
 - publishes to npm (`latest`)
 - uploads `.tgz` and `dist.tar.gz` to GitHub Release assets

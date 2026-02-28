@@ -38,7 +38,7 @@ type MockStrapi = {
     get: (key: string, defaultValue?: unknown) => unknown;
   };
   log: {
-    warn: ReturnType<typeof vi.fn>;
+    warn: ReturnType<typeof vi.fn<(message: string) => void>>;
   };
 };
 
