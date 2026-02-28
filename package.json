@@ -1,6 +1,6 @@
 {
   "name": "strapi-plugin-cloudflare-r2-assets",
-  "version": "0.1.0",
+  "version": "0.0.1",
   "description": "Strapi 5 upload provider and plugin integration for Cloudflare R2 with edge image resizing.",
   "keywords": [
     "strapi",

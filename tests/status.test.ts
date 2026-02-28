@@ -159,7 +159,7 @@ describe('status service', () => {
 
   it('supports nested upload config shape for compatibility', async () => {
     sendMock.mockResolvedValueOnce({});
-    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ version: '0.1.0' })));
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ version: '0.0.1' })));
 
     const strapi = createStrapi({
       config: {
@@ -188,7 +188,7 @@ describe('status service', () => {
       const result = await service.getStatus();
 
       expect(result.versionCheck).toBeDefined();
-      expect(result.versionCheck!.currentVersion).toBe('0.1.0');
+      expect(result.versionCheck!.currentVersion).toBe('0.0.1');
       expect(result.versionCheck!.latestVersion).toBe('0.2.0');
       expect(result.versionCheck!.updateAvailable).toBe(true);
       expect(result.versionCheck!.checkedAt).toBeDefined();
@@ -196,7 +196,7 @@ describe('status service', () => {
 
     it('sets updateAvailable to false when versions match', async () => {
       sendMock.mockResolvedValueOnce({});
-      fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ version: '0.1.0' })));
+      fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ version: '0.0.1' })));
 
       const strapi = createStrapi({
         provider: 'strapi-plugin-cloudflare-r2-assets',
