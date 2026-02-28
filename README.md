@@ -25,7 +25,7 @@ Strapi 5 plugin + upload provider that stores assets in Cloudflare R2 and genera
 ## Requirements
 
 - Node.js 20, 22, or 24 (Node 21 is not supported)
-- Strapi 5
+- Strapi 5.37.1 or newer
 - Cloudflare R2 bucket
 - Cloudflare proxied public domain for image delivery (`/cdn-cgi/image/...`)
 
@@ -175,6 +175,22 @@ Required release artifacts:
 - Blocking audit scope is runtime-only: `npm audit --omit=dev --omit=peer --omit=optional --audit-level=high`
 - A separate full-graph audit runs in CI for visibility and does not block releases
 - This keeps package release gating aligned with shipped runtime risk for this plugin package
+
+## Upstream advisory: Strapi Koa dependency
+
+Strapi `5.37.1` currently resolves Koa below the patched version for `GHSA-7gcc-r8m5-44qm` / `CVE-2026-27959`.
+
+Until Strapi publishes a fixed release, add an app-level override in your Strapi project:
+
+```json
+{
+  "overrides": {
+    "koa": ">=2.16.4"
+  }
+}
+```
+
+Then reinstall dependencies and redeploy.
 
 ## License
 
