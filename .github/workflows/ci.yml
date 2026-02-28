@@ -127,7 +127,7 @@ jobs:
           cat <<'HEREDOC_EOF' > test-strapi-app/config/database.ts
           export default () => ({
             connection: {
-              client: "better-sqlite3",
+              client: "sqlite",
               connection: { filename: ".tmp/data.db" },
               useNullAsDefault: true,
             },
