@@ -203,6 +203,7 @@ jobs:
             automated
             release
           delete-branch: false
+          update-branch: true
           body: |
             ## Release Checklist
 
