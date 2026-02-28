@@ -77,6 +77,16 @@ describe('provider upload', () => {
     await expect(instance.upload(file)).rejects.toThrow('missing both "buffer" and "stream"');
   });
 
+  it('throws with descriptive message when S3 upload fails', async () => {
+    sendMock.mockRejectedValueOnce(new Error('AccessDenied'));
+    const instance = provider.init(baseOptions);
+    const file = createFile({ buffer: Buffer.from('data') });
+
+    await expect(instance.upload(file)).rejects.toThrow(
+      'Failed to upload object "uploads/abc123.jpg" to bucket "media": AccessDenied'
+    );
+  });
+
   it('passes CacheControl header to PutObjectCommand', async () => {
     const instance = provider.init({ ...baseOptions, cacheControl: 'public, max-age=31536000' });
     const file = createFile({ buffer: Buffer.from('data') });
@@ -235,5 +245,27 @@ describe('provider delete', () => {
       expect.stringContaining('NoSuchBucket')
     );
     warnSpy.mockRestore();
+  });
+});
+
+describe('provider healthCheck', () => {
+  beforeEach(() => {
+    sendMock.mockReset();
+    sendMock.mockResolvedValue({});
+  });
+
+  it('resolves when HeadBucket succeeds', async () => {
+    const instance = provider.init(baseOptions);
+    await expect(instance.healthCheck()).resolves.toBeUndefined();
+    expect(sendMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('throws with descriptive message when HeadBucket fails', async () => {
+    sendMock.mockRejectedValueOnce(new Error('NotFound'));
+    const instance = provider.init(baseOptions);
+
+    await expect(instance.healthCheck()).rejects.toThrow('Health check failed for bucket "media"');
+    sendMock.mockRejectedValueOnce(new Error('NotFound'));
+    await expect(instance.healthCheck()).rejects.toThrow('NotFound');
   });
 });

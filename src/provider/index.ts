@@ -69,15 +69,20 @@ const provider = {
       const objectKey = resolveObjectKey(file, config.basePath);
       const body = resolveBody(file);
 
-      await client.send(
-        new PutObjectCommand({
-          Bucket: config.bucket,
-          Key: objectKey,
-          Body: body,
-          ContentType: file.mime,
-          CacheControl: config.cacheControl,
-        })
-      );
+      try {
+        await client.send(
+          new PutObjectCommand({
+            Bucket: config.bucket,
+            Key: objectKey,
+            Body: body,
+            ContentType: file.mime,
+            CacheControl: config.cacheControl,
+          })
+        );
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : String(error);
+        throw new Error(`[${PLUGIN_ID}] Failed to upload object "${objectKey}" to bucket "${config.bucket}": ${detail}`);
+      }
 
       const sourceUrl = buildPublicObjectUrl(config.publicBaseUrl, objectKey);
 
@@ -130,7 +135,12 @@ const provider = {
         return file;
       },
       async healthCheck() {
-        await client.send(new HeadBucketCommand({ Bucket: config.bucket }));
+        try {
+          await client.send(new HeadBucketCommand({ Bucket: config.bucket }));
+        } catch (error) {
+          const detail = error instanceof Error ? error.message : String(error);
+          throw new Error(`[${PLUGIN_ID}] Health check failed for bucket "${config.bucket}": ${detail}`);
+        }
       },
     };
   },
