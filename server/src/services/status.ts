@@ -1,7 +1,7 @@
 import { HeadBucketCommand } from '@aws-sdk/client-s3';
 
 import { PLUGIN_ID, PROVIDER_PACKAGE_NAME } from '../../../src/shared/constants';
-import { resolvePluginConfig, toPublicConfig } from '../../../src/shared/config';
+import { checkEnvKeys, resolvePluginConfig, toPublicConfig } from '../../../src/shared/config';
 import { createS3Client } from '../../../src/shared/s3-client';
 import type { RawPluginConfig, SettingsStatusResponse } from '../../../src/shared/types';
 
@@ -77,6 +77,7 @@ export default ({ strapi }: { strapi: StrapiLike }) => ({
         configured: false,
         warnings,
         errors: [message],
+        envKeys: checkEnvKeys(providerOptions),
       };
     }
 
@@ -93,6 +94,7 @@ export default ({ strapi }: { strapi: StrapiLike }) => ({
         warnings: [],
         errors: [],
         config: toPublicConfig(config),
+        envKeys: checkEnvKeys(providerOptions),
         health: {
           ok: true,
           checkedAt: new Date().toISOString(),
@@ -111,6 +113,7 @@ export default ({ strapi }: { strapi: StrapiLike }) => ({
         warnings: [],
         errors: [],
         config: toPublicConfig(config),
+        envKeys: checkEnvKeys(providerOptions),
         health: {
           ok: false,
           checkedAt: new Date().toISOString(),

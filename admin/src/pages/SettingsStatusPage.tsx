@@ -1,11 +1,13 @@
 import type { JSX } from 'react';
 import { useEffect, useState } from 'react';
-import { Alert, Box, Divider, Flex, Grid, Loader, Typography } from '@strapi/design-system';
+import { Alert, Box, Divider, Flex, Loader, Typography } from '@strapi/design-system';
 import { Layouts, Page, useFetchClient } from '@strapi/strapi/admin';
 
 import pluginId from '../pluginId';
 import type { SettingsStatusResponse } from '../../../src/shared/types';
 import StatusCard from '../components/StatusCard';
+import CodeBlock from '../components/CodeBlock';
+import EnvKeyList from '../components/EnvKeyList';
 
 type FetchState =
   | { status: 'loading' }
@@ -21,7 +23,7 @@ const formatConfigValue = (value: unknown): string => {
   }
 
   if (value === null || typeof value === 'undefined') {
-    return '—';
+    return '\u2014';
   }
 
   if (typeof value === 'object') {
@@ -30,6 +32,16 @@ const formatConfigValue = (value: unknown): string => {
 
   return String(value);
 };
+
+const pluginSetupSnippet = `// config/plugins.ts
+export default () => ({
+  upload: {
+    config: {
+      provider: "strapi-plugin-cloudflare-r2-assets",
+      providerOptions: {},
+    },
+  },
+});`;
 
 const SettingsStatusPage = (): JSX.Element => {
   const [state, setState] = useState<FetchState>({ status: 'loading' });
@@ -86,46 +98,71 @@ const SettingsStatusPage = (): JSX.Element => {
 
           {state.status === 'success' ? (
             <Flex direction="column" gap={4}>
-              <Grid.Root gap={4}>
-                <Grid.Item col={12} s={12} m={4}>
-                  <StatusCard
-                    tone={state.data.activeProvider ? 'ok' : 'warning'}
-                    title="Upload Provider"
-                    subtitle={
-                      state.data.activeProvider
-                        ? `Active provider: ${state.data.providerName ?? 'unknown'}`
-                        : `Provider is not active. Current: ${state.data.providerName ?? 'none'}`
-                    }
-                  />
-                </Grid.Item>
+              {/* Section 1: Upload Provider */}
+              {state.data.activeProvider ? (
+                <StatusCard
+                  tone="ok"
+                  title="Upload Provider"
+                  subtitle={`Active provider: ${state.data.providerName ?? 'unknown'}`}
+                />
+              ) : (
+                <StatusCard
+                  tone="error"
+                  title="Upload Provider"
+                  subtitle="The Cloudflare R2 upload provider is not active."
+                >
+                  <Flex direction="column" gap={3}>
+                    <Typography variant="pi" textColor="neutral700">
+                      To activate, configure the upload provider in your Strapi project:
+                    </Typography>
+                    <CodeBlock>{pluginSetupSnippet}</CodeBlock>
+                    <Typography variant="pi" textColor="neutral600">
+                      Then restart Strapi.
+                    </Typography>
+                  </Flex>
+                </StatusCard>
+              )}
 
-                <Grid.Item col={12} s={12} m={4}>
-                  <StatusCard
-                    tone={state.data.configured ? 'ok' : 'error'}
-                    title="Configuration"
-                    subtitle={
-                      state.data.configured
-                        ? 'Required environment values are resolved.'
-                        : 'Required configuration is incomplete.'
-                    }
-                  />
-                </Grid.Item>
+              {/* Section 2: Environment Variables (only when provider active) */}
+              {state.data.activeProvider && state.data.envKeys ? (
+                <StatusCard
+                  tone={
+                    state.data.envKeys.filter((k) => k.required).every((k) => k.resolved)
+                      ? 'ok'
+                      : 'error'
+                  }
+                  title="Environment Variables"
+                  subtitle={
+                    state.data.envKeys.filter((k) => k.required).every((k) => k.resolved)
+                      ? 'All required environment variables are set.'
+                      : 'Some required environment variables are missing.'
+                  }
+                >
+                  <Flex direction="column" gap={3}>
+                    <EnvKeyList envKeys={state.data.envKeys} />
+                    {!state.data.envKeys.some((k) => k.prefixedKey) ? (
+                      <Box paddingTop={2}>
+                        <Typography variant="pi" textColor="neutral600">
+                          If your env vars use a custom prefix (e.g. CMS_), set CF_R2_ENV_PREFIX in your .env file.
+                        </Typography>
+                      </Box>
+                    ) : null}
+                    {state.data.envKeys.filter((k) => k.required).some((k) => !k.resolved) ? (
+                      <Typography variant="pi" textColor="neutral600">
+                        After setting missing variables, restart Strapi.
+                      </Typography>
+                    ) : null}
+                  </Flex>
+                </StatusCard>
+              ) : null}
 
-                <Grid.Item col={12} s={12} m={4}>
-                  <StatusCard
-                    tone={state.data.health?.ok ? 'ok' : 'warning'}
-                    title="Bucket Connectivity"
-                    subtitle={state.data.health?.detail ?? 'No bucket check was executed.'}
-                  />
-                </Grid.Item>
-              </Grid.Root>
-
+              {/* Section 3: Effective Configuration (only when configured) */}
               {state.data.config ? (
-                <StatusCard tone="ok" title="Effective Non-Secret Config">
-                  <Flex direction="column" gap={2}>
+                <StatusCard tone="ok" title="Effective Configuration">
+                  <Flex direction="column" gap={3}>
                     {Object.entries(state.data.config).map(([key, value], index, all) => (
                       <Box key={key}>
-                        <Flex justifyContent="space-between" gap={4} wrap="wrap">
+                        <Flex direction="column" gap={1}>
                           <Typography variant="pi" textColor="neutral600">
                             {key}
                           </Typography>
@@ -140,6 +177,42 @@ const SettingsStatusPage = (): JSX.Element => {
                 </StatusCard>
               ) : null}
 
+              {/* Section 4: Bucket Connectivity (only when health data present) */}
+              {state.data.health ? (
+                <StatusCard
+                  tone={state.data.health.ok ? 'ok' : 'error'}
+                  title="Bucket Connectivity"
+                  subtitle={state.data.health.detail ?? 'No bucket check was executed.'}
+                >
+                  {!state.data.health.ok ? (
+                    <Flex direction="column" gap={2}>
+                      <Typography variant="pi" textColor="neutral700" fontWeight="semiBold">
+                        Troubleshooting steps:
+                      </Typography>
+                      <Typography variant="pi" textColor="neutral700" tag="ol" style={{ paddingLeft: '20px', margin: 0 }}>
+                        <li>
+                          Verify that the bucket{' '}
+                          <Typography variant="pi" fontWeight="semiBold" tag="span">
+                            {state.data.config?.bucket ?? '(unknown)'}
+                          </Typography>{' '}
+                          exists in your Cloudflare R2 dashboard.
+                        </li>
+                        <li>
+                          Confirm the endpoint{' '}
+                          <Typography variant="pi" fontWeight="semiBold" tag="span">
+                            {state.data.config?.endpoint ?? '(unknown)'}
+                          </Typography>{' '}
+                          is correct for your account.
+                        </li>
+                        <li>Check that your R2 API token has read/write permissions for the bucket.</li>
+                        <li>Ensure the access key ID and secret access key are valid and not revoked.</li>
+                      </Typography>
+                    </Flex>
+                  ) : null}
+                </StatusCard>
+              ) : null}
+
+              {/* Warnings */}
               {state.data.warnings.length > 0 ? (
                 <Flex direction="column" gap={2}>
                   {state.data.warnings.map((warning) => (
@@ -155,6 +228,7 @@ const SettingsStatusPage = (): JSX.Element => {
                 </Flex>
               ) : null}
 
+              {/* Errors */}
               {state.data.errors.length > 0 ? (
                 <Flex direction="column" gap={2}>
                   {state.data.errors.map((error) => (

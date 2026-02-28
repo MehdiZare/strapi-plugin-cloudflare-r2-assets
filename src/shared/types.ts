@@ -49,6 +49,14 @@ export interface ResolvedPluginConfig {
   cacheControl?: string;
 }
 
+export interface EnvKeyInfo {
+  key: string;
+  description: string;
+  required: boolean;
+  resolved: boolean;
+  prefixedKey?: string;
+}
+
 export interface SettingsStatusResponse {
   pluginId: string;
   providerName?: string;
@@ -68,6 +76,7 @@ export interface SettingsStatusResponse {
     maxFormats: number;
     cacheControl?: string;
   };
+  envKeys?: EnvKeyInfo[];
   health?: {
     ok: boolean;
     checkedAt: string;

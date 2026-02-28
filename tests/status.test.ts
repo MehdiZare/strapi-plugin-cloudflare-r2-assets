@@ -98,6 +98,8 @@ describe('status service', () => {
     expect(result.configured).toBe(false);
     expect(result.errors[0]).toMatch(/Missing required configuration/);
     expect(result.warnings[0]).toContain('CF_R2_ENV_PREFIX=CMS_');
+    expect(result.envKeys).toBeDefined();
+    expect(result.envKeys!.filter((k) => k.required).every((k) => !k.resolved)).toBe(true);
   });
 
   it('handles network timeout errors gracefully', async () => {
@@ -136,6 +138,19 @@ describe('status service', () => {
     expect(result.health?.bucketReachable).toBe(true);
     expect(result.config).toBeDefined();
     expect(result.config?.bucket).toBe('media');
+    expect(result.envKeys).toBeDefined();
+    expect(result.envKeys!.filter((k) => k.required).every((k) => k.resolved)).toBe(true);
+  });
+
+  it('omits envKeys when provider is not active', async () => {
+    const strapi = createStrapi({
+      provider: 'some-other-provider',
+    });
+    const service = createStatusService({ strapi });
+    const result = await service.getStatus();
+
+    expect(result.activeProvider).toBe(false);
+    expect(result.envKeys).toBeUndefined();
   });
 
   it('supports nested upload config shape for compatibility', async () => {

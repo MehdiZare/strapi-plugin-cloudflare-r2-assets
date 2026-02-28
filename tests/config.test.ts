@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { resolvePluginConfig, toPublicConfig } from '../src/shared/config';
+import { checkEnvKeys, resolvePluginConfig, toPublicConfig } from '../src/shared/config';
 
 describe('resolvePluginConfig', () => {
   const baseEnv = {
@@ -138,5 +138,90 @@ describe('toPublicConfig', () => {
     const publicConfig = toPublicConfig(config);
 
     expect(publicConfig.endpoint).toBe('https://custom-r2.example.com');
+  });
+});
+
+describe('checkEnvKeys', () => {
+  const fullEnv = {
+    CF_R2_ACCOUNT_ID: 'acc_12345',
+    CF_R2_BUCKET: 'media',
+    CF_R2_ACCESS_KEY_ID: 'key_id',
+    CF_R2_SECRET_ACCESS_KEY: 'secret_key',
+    CF_PUBLIC_BASE_URL: 'https://media.example.com',
+  };
+
+  it('marks all required keys as resolved when env vars are set', () => {
+    const result = checkEnvKeys({}, fullEnv);
+    const required = result.filter((k) => k.required);
+
+    expect(required.length).toBe(5);
+    expect(required.every((k) => k.resolved)).toBe(true);
+  });
+
+  it('marks required keys as unresolved when env vars are missing', () => {
+    const result = checkEnvKeys({}, {});
+    const required = result.filter((k) => k.required);
+
+    expect(required.every((k) => !k.resolved)).toBe(true);
+  });
+
+  it('marks keys resolved via providerOptions', () => {
+    const result = checkEnvKeys({
+      accountId: 'acc_123',
+      bucket: 'mybucket',
+      accessKeyId: 'key',
+      secretAccessKey: 'secret',
+      publicBaseUrl: 'https://example.com',
+    }, {});
+    const required = result.filter((k) => k.required);
+
+    expect(required.every((k) => k.resolved)).toBe(true);
+  });
+
+  it('includes optional keys', () => {
+    const result = checkEnvKeys({}, fullEnv);
+    const optional = result.filter((k) => !k.required);
+
+    expect(optional.length).toBeGreaterThan(0);
+    expect(optional.every((k) => !k.resolved)).toBe(true);
+  });
+
+  it('resolves optional keys from env', () => {
+    const result = checkEnvKeys({}, {
+      ...fullEnv,
+      CF_R2_CACHE_CONTROL: 'max-age=3600',
+    });
+    const cacheControl = result.find((k) => k.key === 'CF_R2_CACHE_CONTROL');
+
+    expect(cacheControl?.resolved).toBe(true);
+    expect(cacheControl?.required).toBe(false);
+  });
+
+  it('includes prefixedKey when CF_R2_ENV_PREFIX is set', () => {
+    const result = checkEnvKeys({}, {
+      CF_R2_ENV_PREFIX: 'APP_',
+      APP_CF_R2_ACCOUNT_ID: 'acc_app',
+      APP_CF_R2_BUCKET: 'bucket_app',
+      APP_CF_R2_ACCESS_KEY_ID: 'key_app',
+      APP_CF_R2_SECRET_ACCESS_KEY: 'secret_app',
+      APP_CF_PUBLIC_BASE_URL: 'https://app.example.com',
+    });
+
+    const accountId = result.find((k) => k.key === 'CF_R2_ACCOUNT_ID');
+    expect(accountId?.prefixedKey).toBe('APP_CF_R2_ACCOUNT_ID');
+    expect(accountId?.resolved).toBe(true);
+  });
+
+  it('does not include prefixedKey when no prefix is set', () => {
+    const result = checkEnvKeys({}, fullEnv);
+    const accountId = result.find((k) => k.key === 'CF_R2_ACCOUNT_ID');
+
+    expect(accountId?.prefixedKey).toBeUndefined();
+  });
+
+  it('includes descriptions for all keys', () => {
+    const result = checkEnvKeys({}, {});
+
+    expect(result.every((k) => k.description.length > 0)).toBe(true);
   });
 });
