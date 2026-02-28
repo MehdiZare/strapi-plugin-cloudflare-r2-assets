@@ -85,6 +85,12 @@ jobs:
   strapi-build:
     name: Strapi Build
     runs-on: ubuntu-latest
+    env:
+      APP_KEYS: test-key-1,test-key-2
+      API_TOKEN_SALT: test-api-token-salt
+      ADMIN_JWT_SECRET: test-admin-jwt-secret
+      TRANSFER_TOKEN_SALT: test-transfer-token-salt
+      JWT_SECRET: test-jwt-secret
     steps:
       - name: Checkout
         uses: actions/checkout@v6.0.2
@@ -104,7 +110,7 @@ jobs:
 
       - name: Create test Strapi app
         run: |
-          mkdir -p test-strapi-app/config
+          mkdir -p test-strapi-app/config test-strapi-app/public/uploads
 
           cat <<'HEREDOC_EOF' > test-strapi-app/package.json
           {
@@ -130,22 +136,6 @@ jobs:
               client: "sqlite",
               connection: { filename: ".tmp/data.db" },
               useNullAsDefault: true,
-            },
-          });
-          HEREDOC_EOF
-
-          cat <<'HEREDOC_EOF' > test-strapi-app/config/admin.ts
-          export default () => ({
-            auth: {
-              secret: "ci-test-secret-do-not-use-in-production",
-            },
-            apiToken: {
-              salt: "ci-test-salt-do-not-use-in-production",
-            },
-            transfer: {
-              token: {
-                salt: "ci-test-transfer-salt-do-not-use",
-              },
             },
           });
           HEREDOC_EOF
@@ -201,12 +191,6 @@ jobs:
           echo "Admin UI did not respond within 60 seconds"
           kill $STRAPI_PID 2>/dev/null || true
           exit 1
-        env:
-          APP_KEYS: test-key-1,test-key-2
-          API_TOKEN_SALT: test-api-token-salt
-          ADMIN_JWT_SECRET: test-admin-jwt-secret
-          TRANSFER_TOKEN_SALT: test-transfer-token-salt
-          JWT_SECRET: test-jwt-secret
 
   ci-expected:
     name: CI Expected
