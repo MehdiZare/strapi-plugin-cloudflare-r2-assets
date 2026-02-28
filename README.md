@@ -70,7 +70,7 @@ Create or update `config/plugins.ts`:
 export default () => ({
   upload: {
     config: {
-      provider: "strapi-plugin-cloudflare-r2-assets",
+      provider: 'strapi-plugin-cloudflare-r2-assets',
       providerOptions: {},
     },
   },

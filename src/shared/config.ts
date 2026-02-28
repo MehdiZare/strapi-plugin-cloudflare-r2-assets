@@ -244,6 +244,16 @@ const OPTIONAL_ENV_KEYS = [
   'CF_IMAGE_MAX_FORMATS',
 ];
 
+const hasConfiguredValue = (value: unknown): boolean => {
+  if (typeof value === 'string') {
+    return toTrimmedOrUndefined(value) !== undefined;
+  }
+  if (Array.isArray(value)) {
+    return value.length > 0;
+  }
+  return value !== undefined && value !== null;
+};
+
 export const checkEnvKeys = (
   options: RawPluginConfig = {},
   env: NodeJS.ProcessEnv = process.env,
@@ -270,11 +280,8 @@ export const checkEnvKeys = (
 
   const isResolved = (key: string): boolean => {
     const optKey = optionKeyMap[key];
-    if (optKey) {
-      const optValue = options[optKey];
-      if (optValue !== undefined && optValue !== null && optValue !== '') {
-        return true;
-      }
+    if (optKey && hasConfiguredValue(options[optKey])) {
+      return true;
     }
     return getEnv(key) !== undefined;
   };

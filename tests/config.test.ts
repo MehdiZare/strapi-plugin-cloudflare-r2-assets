@@ -178,6 +178,18 @@ describe('checkEnvKeys', () => {
     expect(required.every((k) => k.resolved)).toBe(true);
   });
 
+  it('treats whitespace-only provider options as unresolved', () => {
+    const result = checkEnvKeys({
+      accountId: '   ',
+      bucket: '\t',
+      accessKeyId: ' ',
+      secretAccessKey: '\n',
+      publicBaseUrl: '   ',
+    }, {});
+    const required = result.filter((k) => k.required);
+    expect(required.every((k) => !k.resolved)).toBe(true);
+  });
+
   it('includes optional keys', () => {
     const result = checkEnvKeys({}, fullEnv);
     const optional = result.filter((k) => !k.required);
