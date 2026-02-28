@@ -33,18 +33,23 @@ Create or update `config/plugins.ts`:
 
 ```ts
 export default () => ({
+  // Upload provider — stores files in R2 and serves Cloudflare edge URLs
   upload: {
     config: {
-      provider: "strapi-plugin-cloudflare-r2-assets",
+      provider: 'strapi-plugin-cloudflare-r2-assets',
       providerOptions: {},
     },
+  },
+  // Admin diagnostics page (Settings > Cloudflare R2 Assets)
+  'cloudflare-r2-assets': {
+    enabled: true,
   },
 });
 ```
 
 All settings are resolved from environment variables by default. You can optionally override defaults in `providerOptions`:
 
-```ts
+```jsonc
 providerOptions: {
   basePath: 'uploads',     // default: 'uploads'
   formats: ['webp', 'avif'], // default: ['webp', 'avif']

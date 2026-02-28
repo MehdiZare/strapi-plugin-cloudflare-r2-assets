@@ -81,7 +81,7 @@ const provider = {
         );
       } catch (error) {
         const detail = error instanceof Error ? error.message : String(error);
-        throw new Error(`[${PLUGIN_ID}] Failed to upload object "${objectKey}" to bucket "${config.bucket}": ${detail}`);
+        throw new Error(`[${PLUGIN_ID}] Failed to upload object "${objectKey}" to bucket "${config.bucket}": ${detail}`, { cause: error });
       }
 
       const sourceUrl = buildPublicObjectUrl(config.publicBaseUrl, objectKey);
@@ -139,7 +139,7 @@ const provider = {
           await client.send(new HeadBucketCommand({ Bucket: config.bucket }));
         } catch (error) {
           const detail = error instanceof Error ? error.message : String(error);
-          throw new Error(`[${PLUGIN_ID}] Health check failed for bucket "${config.bucket}": ${detail}`);
+          throw new Error(`[${PLUGIN_ID}] Health check failed for bucket "${config.bucket}": ${detail}`, { cause: error });
         }
       },
     };

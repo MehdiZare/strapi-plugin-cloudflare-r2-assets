@@ -1,6 +1,6 @@
-<p align="center">
-  <img src="./marketplace-logo.png" alt="Cloudflare R2 Assets" width="200" />
-</p>
+<div style="text-align:center">
+  <img src="./marketplace-logo.png" alt="Cloudflare R2 Assets" style="width:200px" />
+</div>
 
 # strapi-plugin-cloudflare-r2-assets
 
@@ -69,18 +69,23 @@ Create or update `config/plugins.ts`:
 
 ```ts
 export default () => ({
+  // Upload provider — stores files in R2 and serves Cloudflare edge URLs
   upload: {
     config: {
       provider: 'strapi-plugin-cloudflare-r2-assets',
       providerOptions: {},
     },
   },
+  // Admin diagnostics page (Settings > Cloudflare R2 Assets)
+  'cloudflare-r2-assets': {
+    enabled: true,
+  },
 });
 ```
 
 All settings are resolved from environment variables by default. You can optionally override defaults in `providerOptions`:
 
-```ts
+```jsonc
 providerOptions: {
   basePath: 'uploads',       // default: 'uploads'
   formats: ['webp', 'avif'], // default: ['webp', 'avif']
@@ -100,9 +105,7 @@ The page is read-only and shows:
 - Effective (non-secret) configuration
 - R2 bucket connectivity check
 
-<p align="center">
-  <img src="./docs/admin-diagnostics.png" alt="Admin diagnostics page" width="720" />
-</p>
+![Admin diagnostics page](./docs/admin-diagnostics.png)
 
 Access requires the plugin read permission: `plugin::cloudflare-r2-assets.read`
 

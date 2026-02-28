@@ -77,14 +77,16 @@ describe('provider upload', () => {
     await expect(instance.upload(file)).rejects.toThrow('missing both "buffer" and "stream"');
   });
 
-  it('throws with descriptive message when S3 upload fails', async () => {
-    sendMock.mockRejectedValueOnce(new Error('AccessDenied'));
+  it('throws with descriptive message and preserves cause when S3 upload fails', async () => {
+    const sdkError = new Error('AccessDenied');
+    sendMock.mockRejectedValueOnce(sdkError);
     const instance = provider.init(baseOptions);
     const file = createFile({ buffer: Buffer.from('data') });
 
-    await expect(instance.upload(file)).rejects.toThrow(
-      'Failed to upload object "uploads/abc123.jpg" to bucket "media": AccessDenied'
-    );
+    const error = await instance.upload(file).catch((e: Error) => e);
+    expect(error).toBeInstanceOf(Error);
+    expect(error.message).toContain('Failed to upload object "uploads/abc123.jpg" to bucket "media": AccessDenied');
+    expect(error.cause).toBe(sdkError);
   });
 
   it('passes CacheControl header to PutObjectCommand', async () => {
@@ -260,12 +262,14 @@ describe('provider healthCheck', () => {
     expect(sendMock).toHaveBeenCalledTimes(1);
   });
 
-  it('throws with descriptive message when HeadBucket fails', async () => {
-    sendMock.mockRejectedValueOnce(new Error('NotFound'));
+  it('throws with descriptive message and preserves cause when HeadBucket fails', async () => {
+    const sdkError = new Error('NotFound');
+    sendMock.mockRejectedValueOnce(sdkError);
     const instance = provider.init(baseOptions);
 
-    await expect(instance.healthCheck()).rejects.toThrow('Health check failed for bucket "media"');
-    sendMock.mockRejectedValueOnce(new Error('NotFound'));
-    await expect(instance.healthCheck()).rejects.toThrow('NotFound');
+    const error = await instance.healthCheck().catch((e: Error) => e);
+    expect(error).toBeInstanceOf(Error);
+    expect(error.message).toContain('Health check failed for bucket "media": NotFound');
+    expect(error.cause).toBe(sdkError);
   });
 });

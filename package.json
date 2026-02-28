@@ -104,6 +104,6 @@
     "name": "cloudflare-r2-assets",
     "displayName": "Cloudflare R2 Assets",
     "description": "Upload provider with Cloudflare R2 storage and Cloudflare edge image resizing.",
-    "kind": "provider"
+    "kind": "plugin"
   }
 }

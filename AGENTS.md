@@ -112,6 +112,9 @@ export default () => ({
       },
     },
   },
+  'cloudflare-r2-assets': {
+    enabled: true,
+  },
 });
 ```
 
