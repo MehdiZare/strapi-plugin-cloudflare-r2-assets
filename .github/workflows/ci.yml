@@ -140,6 +140,22 @@ jobs:
           });
           HEREDOC_EOF
 
+          cat <<'HEREDOC_EOF' > test-strapi-app/config/admin.ts
+          export default () => ({
+            auth: {
+              secret: process.env.ADMIN_JWT_SECRET,
+            },
+            apiToken: {
+              salt: process.env.API_TOKEN_SALT,
+            },
+            transfer: {
+              token: {
+                salt: process.env.TRANSFER_TOKEN_SALT,
+              },
+            },
+          });
+          HEREDOC_EOF
+
           cat <<'HEREDOC_EOF' > test-strapi-app/config/plugins.ts
           export default () => ({
             "cloudflare-r2-assets": { enabled: true },
