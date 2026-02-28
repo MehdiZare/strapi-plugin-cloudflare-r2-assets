@@ -119,7 +119,7 @@ This repository uses a `dev -> main` release model with label-driven versioning.
 
 ### 1. Create release intent on the automated release PR
 
-- `release-pr.yml` keeps an open PR from `dev` to `main`.
+- `dev-release.yml` automatically creates and updates a PR from `dev` to `main`.
 - Add exactly one label to that PR:
   - `release:major`
   - `release:minor`
