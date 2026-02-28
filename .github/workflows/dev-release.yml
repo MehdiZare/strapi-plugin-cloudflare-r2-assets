@@ -135,8 +135,9 @@ jobs:
         run: |
           LATEST="$(npm view strapi-plugin-cloudflare-r2-assets dist-tags.latest 2>/dev/null || true)"
           if [ -n "$LATEST" ] && echo "$LATEST" | grep -q -- '-dev\.'; then
-            echo "::warning::latest dist-tag points to prerelease ($LATEST) — removing it"
-            npm dist-tag rm strapi-plugin-cloudflare-r2-assets latest || true
+            echo "::warning::latest dist-tag points to prerelease ($LATEST) — moving it to current next version"
+            NEXT="${{ steps.version.outputs.version }}"
+            npm dist-tag add "strapi-plugin-cloudflare-r2-assets@${NEXT}" latest || true
           fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
