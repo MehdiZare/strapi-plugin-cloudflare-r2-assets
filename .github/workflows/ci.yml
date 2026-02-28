@@ -140,6 +140,16 @@ jobs:
           });
           HEREDOC_EOF
 
+          cat <<'HEREDOC_EOF' > test-strapi-app/config/server.ts
+          export default () => ({
+            host: "0.0.0.0",
+            port: 1337,
+            app: {
+              keys: (process.env.APP_KEYS || "").split(","),
+            },
+          });
+          HEREDOC_EOF
+
           cat <<'HEREDOC_EOF' > test-strapi-app/config/admin.ts
           export default () => ({
             auth: {
