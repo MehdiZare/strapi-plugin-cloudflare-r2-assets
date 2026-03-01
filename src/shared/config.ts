@@ -194,6 +194,7 @@ export const resolvePluginConfig = (options: RawPluginConfig = {}, env: NodeJS.P
     maxFormats,
     cacheControl,
     requestTimeout,
+    maxUploadBufferBytes: options.maxUploadBufferBytes,
   };
 };
 
@@ -233,7 +234,7 @@ const ENV_KEY_DESCRIPTIONS: Record<string, string> = {
   CF_IMAGE_FORMATS: 'Comma-separated image output formats (e.g. webp,avif)',
   CF_IMAGE_QUALITY: 'Image compression quality (1–100)',
   CF_IMAGE_MAX_FORMATS: 'Maximum number of image format variants (1–10)',
-  CF_R2_REQUEST_TIMEOUT: 'Fetch request timeout in milliseconds (default: 30000)',
+  CF_R2_REQUEST_TIMEOUT: `Fetch request timeout in milliseconds (default: ${DEFAULT_REQUEST_TIMEOUT_MS})`,
 };
 
 const REQUIRED_ENV_KEYS = [

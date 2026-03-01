@@ -33,6 +33,7 @@ export interface RawPluginConfig {
   maxFormats?: number;
   cacheControl?: string;
   requestTimeout?: number;
+  maxUploadBufferBytes?: number;
 }
 
 export interface ResolvedPluginConfig {
@@ -49,6 +50,7 @@ export interface ResolvedPluginConfig {
   maxFormats: number;
   cacheControl?: string;
   requestTimeout: number;
+  maxUploadBufferBytes?: number;
 }
 
 export interface VersionCheck {

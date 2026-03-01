@@ -9,6 +9,7 @@ const DEFAULT_QUALITY = 82;
 const DEFAULT_MAX_FORMATS = 4;
 const DEFAULT_BASE_PATH = "uploads";
 const DEFAULT_REQUEST_TIMEOUT_MS = 3e4;
+const DEFAULT_MAX_UPLOAD_BUFFER_BYTES = 100 * 1024 * 1024;
 const ALLOWED_IMAGE_FORMATS = ["webp", "avif", "jpeg", "png"];
 const ALLOWED_FORMAT_SET = new Set(ALLOWED_IMAGE_FORMATS);
 const parseInteger = (name, value) => {
@@ -152,7 +153,8 @@ const resolvePluginConfig = (options = {}, env = process.env) => {
     quality,
     maxFormats,
     cacheControl,
-    requestTimeout
+    requestTimeout,
+    maxUploadBufferBytes: options.maxUploadBufferBytes
   };
 };
 const trimSlash = (value) => value.replace(/^\/+|\/+$/g, "");
@@ -339,10 +341,19 @@ const provider = {
       },
       async uploadStream(file) {
         if (file.stream && !file.buffer) {
+          const maxBufferBytes = config.maxUploadBufferBytes ?? DEFAULT_MAX_UPLOAD_BUFFER_BYTES;
           const chunks = [];
+          let totalBytes = 0;
           try {
             for await (const chunk of file.stream) {
-              chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+              const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+              totalBytes += buf.length;
+              if (totalBytes > maxBufferBytes) {
+                throw new Error(
+                  `[${PLUGIN_ID}] Upload stream for "${file.name}" exceeded maximum buffer size of ${maxBufferBytes} bytes`
+                );
+              }
+              chunks.push(buf);
             }
           } catch (error) {
             const detail = error instanceof Error ? error.message : String(error);

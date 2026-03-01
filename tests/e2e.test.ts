@@ -29,9 +29,11 @@ const hasR2Credentials = !!(
 );
 
 const hasBuiltDist = existsSync(join(PROJECT_ROOT, 'dist', 'provider', 'index.js'));
+const LOGO_PATH = join(PROJECT_ROOT, 'marketplace-logo.png');
+const hasLogoFile = existsSync(LOGO_PATH);
 
-/** Project logo used as a real-world image upload test (~580 KB). */
-const LOGO_PNG = readFileSync(join(PROJECT_ROOT, 'marketplace-logo.png'));
+/** Project logo used as a real-world image upload test (~580 KB). Loaded lazily in beforeAll. */
+let logoPng: Uint8Array<ArrayBuffer>;
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -66,7 +68,7 @@ const deleteFile = (baseUrl: string, jwt: string, id: number): Promise<Response>
 
 // ── Suite ────────────────────────────────────────────────────────────
 
-describe.skipIf(!hasR2Credentials || !hasBuiltDist)(
+describe.skipIf(!hasR2Credentials || !hasBuiltDist || !hasLogoFile)(
   'E2E: Strapi with R2 provider',
   () => {
     let tmpDir: string;
@@ -85,6 +87,8 @@ describe.skipIf(!hasR2Credentials || !hasBuiltDist)(
     // ── Setup ──────────────────────────────────────────────────────
 
     beforeAll(async () => {
+      logoPng = readFileSync(LOGO_PATH);
+
       // Make our package resolvable by name from the project's node_modules
       if (createdSelfLink) {
         await symlink(PROJECT_ROOT, selfLink);
@@ -301,7 +305,7 @@ describe.skipIf(!hasR2Credentials || !hasBuiltDist)(
     }, 30_000);
 
     it('uploads an image and generates responsive format variants', async () => {
-      const blob = new Blob([LOGO_PNG], { type: 'image/png' });
+      const blob = new Blob([logoPng], { type: 'image/png' });
       const res = await uploadFile(baseUrl, adminJwt, blob, 'e2e-test.png');
 
       expect(res.status).toBe(201);

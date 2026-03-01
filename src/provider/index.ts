@@ -1,6 +1,6 @@
 import { Readable } from 'node:stream';
 
-import { PLUGIN_ID, PROVIDER_PACKAGE_NAME } from '../shared/constants';
+import { DEFAULT_MAX_UPLOAD_BUFFER_BYTES, PLUGIN_ID, PROVIDER_PACKAGE_NAME } from '../shared/constants';
 import { resolvePluginConfig } from '../shared/config';
 import { buildObjectKey, extractObjectKeyFromPublicUrl, isCloudflareTransformUrl, normalizeObjectKey } from '../shared/path';
 import { createR2Client, buildObjectUrl, buildBucketUrl } from '../shared/r2-client';
@@ -108,10 +108,19 @@ const provider = {
         // R2 requires Content-Length on PUT. Streams don't provide it,
         // so buffer the stream before uploading.
         if (file.stream && !file.buffer) {
+          const maxBufferBytes = config.maxUploadBufferBytes ?? DEFAULT_MAX_UPLOAD_BUFFER_BYTES;
           const chunks: Buffer[] = [];
+          let totalBytes = 0;
           try {
             for await (const chunk of file.stream) {
-              chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+              const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+              totalBytes += buf.length;
+              if (totalBytes > maxBufferBytes) {
+                throw new Error(
+                  `[${PLUGIN_ID}] Upload stream for "${file.name}" exceeded maximum buffer size of ${maxBufferBytes} bytes`,
+                );
+              }
+              chunks.push(buf);
             }
           } catch (error) {
             const detail = error instanceof Error ? error.message : String(error);

@@ -9,5 +9,6 @@ export const DEFAULT_MAX_FORMATS = 4;
 export const DEFAULT_BASE_PATH = 'uploads';
 
 export const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
+export const DEFAULT_MAX_UPLOAD_BUFFER_BYTES = 100 * 1024 * 1024;
 
 export const ALLOWED_IMAGE_FORMATS = ['webp', 'avif', 'jpeg', 'png'] as const;
