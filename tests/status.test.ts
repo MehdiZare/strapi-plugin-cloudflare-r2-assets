@@ -1,27 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const sendMock = vi.fn();
+const r2FetchMock = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>();
 
-vi.mock('@aws-sdk/client-s3', () => {
-  class S3Client {
-    send = sendMock;
-  }
-
-  class HeadBucketCommand {
-    constructor(public readonly input: unknown) {}
-  }
-
-  return {
-    S3Client,
-    HeadBucketCommand,
-    PutObjectCommand: class {
-      constructor(public readonly input: unknown) {}
-    },
-    DeleteObjectCommand: class {
-      constructor(public readonly input: unknown) {}
-    },
-  };
-});
+vi.mock('../src/shared/r2-client', () => ({
+  createR2Client: () => ({
+    fetch: r2FetchMock,
+    endpoint: 'https://acc_12345.r2.cloudflarestorage.com',
+    bucket: 'media',
+  }),
+  buildObjectUrl: (ep: string, b: string, k: string) => `${ep}/${b}/${k}`,
+  buildBucketUrl: (ep: string, b: string) => `${ep}/${b}`,
+}));
 
 import createStatusService, { resetVersionCache } from '../server/src/services/status';
 
@@ -56,7 +45,8 @@ const fetchMock = vi.fn<typeof global.fetch>();
 
 describe('status service', () => {
   beforeEach(() => {
-    sendMock.mockReset();
+    r2FetchMock.mockReset();
+    r2FetchMock.mockResolvedValue(new Response(null, { status: 200 }));
     fetchMock.mockReset();
     resetVersionCache();
     global.fetch = fetchMock;
@@ -72,7 +62,7 @@ describe('status service', () => {
   });
 
   it('returns sanitized connectivity details when bucket check fails', async () => {
-    sendMock.mockRejectedValueOnce(new Error('request failed secretAccessKey=abc123'));
+    r2FetchMock.mockRejectedValueOnce(new Error('request failed secretAccessKey=abc123'));
 
     const strapi = createStrapi({
       provider: 'strapi-plugin-cloudflare-r2-assets',
@@ -109,7 +99,7 @@ describe('status service', () => {
   it('handles network timeout errors gracefully', async () => {
     const timeoutError = new Error('connect ETIMEDOUT 192.168.1.1:443');
     timeoutError.name = 'TimeoutError';
-    sendMock.mockRejectedValueOnce(timeoutError);
+    r2FetchMock.mockRejectedValueOnce(timeoutError);
 
     const strapi = createStrapi({
       provider: 'strapi-plugin-cloudflare-r2-assets',
@@ -127,7 +117,7 @@ describe('status service', () => {
   });
 
   it('returns healthy status when bucket check succeeds', async () => {
-    sendMock.mockResolvedValueOnce({});
+    r2FetchMock.mockResolvedValueOnce(new Response(null, { status: 200 }));
 
     const strapi = createStrapi({
       provider: 'strapi-plugin-cloudflare-r2-assets',
@@ -158,7 +148,7 @@ describe('status service', () => {
   });
 
   it('supports nested upload config shape for compatibility', async () => {
-    sendMock.mockResolvedValueOnce({});
+    r2FetchMock.mockResolvedValueOnce(new Response(null, { status: 200 }));
     fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ version: '0.0.1' })));
 
     const strapi = createStrapi({
@@ -177,7 +167,7 @@ describe('status service', () => {
 
   describe('version check', () => {
     it('includes versionCheck when npm registry responds successfully', async () => {
-      sendMock.mockResolvedValueOnce({});
+      r2FetchMock.mockResolvedValueOnce(new Response(null, { status: 200 }));
       fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ version: '0.2.0' })));
 
       const strapi = createStrapi({
@@ -195,7 +185,7 @@ describe('status service', () => {
     });
 
     it('sets updateAvailable to false when versions match', async () => {
-      sendMock.mockResolvedValueOnce({});
+      r2FetchMock.mockResolvedValueOnce(new Response(null, { status: 200 }));
       fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ version: '0.0.1' })));
 
       const strapi = createStrapi({
@@ -210,7 +200,7 @@ describe('status service', () => {
     });
 
     it('returns undefined versionCheck when npm fetch fails', async () => {
-      sendMock.mockResolvedValueOnce({});
+      r2FetchMock.mockResolvedValueOnce(new Response(null, { status: 200 }));
       fetchMock.mockRejectedValueOnce(new Error('network error'));
 
       const strapi = createStrapi({
@@ -224,7 +214,7 @@ describe('status service', () => {
     });
 
     it('returns undefined versionCheck when npm returns non-ok response', async () => {
-      sendMock.mockResolvedValueOnce({});
+      r2FetchMock.mockResolvedValueOnce(new Response(null, { status: 200 }));
       fetchMock.mockResolvedValueOnce(new Response('not found', { status: 404 }));
 
       const strapi = createStrapi({
@@ -238,7 +228,7 @@ describe('status service', () => {
     });
 
     it('caches npm registry response and does not fetch again within TTL', async () => {
-      sendMock.mockResolvedValue({});
+      r2FetchMock.mockResolvedValue(new Response(null, { status: 200 }));
       fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ version: '0.2.0' })));
 
       const strapi = createStrapi({

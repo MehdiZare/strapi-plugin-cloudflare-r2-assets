@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperties(exports, { __esModule: { value: true }, [Symbol.toStringTag]: { value: "Module" } });
-const clientS3 = require("@aws-sdk/client-s3");
+const aws4fetch = require("aws4fetch");
 const PLUGIN_ID = "cloudflare-r2-assets";
 const PROVIDER_PACKAGE_NAME = "strapi-plugin-cloudflare-r2-assets";
 const PLUGIN_VERSION = "0.0.1";
@@ -285,14 +285,21 @@ const checkEnvKeys = (options = {}, env = process.env) => {
     ...OPTIONAL_ENV_KEYS.map((k) => toInfo(k, false))
   ];
 };
-const createS3Client = (config) => new clientS3.S3Client({
-  endpoint: config.endpoint,
-  region: "auto",
-  credentials: {
+const createR2Client = (config) => {
+  const aws = new aws4fetch.AwsClient({
     accessKeyId: config.accessKeyId,
-    secretAccessKey: config.secretAccessKey
-  }
-});
+    secretAccessKey: config.secretAccessKey,
+    service: "s3",
+    region: "auto"
+  });
+  const endpoint = config.endpoint.replace(/\/+$/, "");
+  return {
+    fetch: (url, init) => aws.fetch(url, init),
+    endpoint,
+    bucket: config.bucket
+  };
+};
+const buildBucketUrl = (endpoint, bucket) => `${endpoint}/${bucket}`;
 const redactSecrets = (input) => input.replace(/(secret(access)?key|access[_-]?key[_-]?id|token|password)\s*[:=]\s*([^\s,;]+)/gi, "$1=[REDACTED]").replace(/(authorization)\s*[:=]\s*([^\s,;]+)/gi, "$1=[REDACTED]");
 const logWarning = (strapi, message, error) => {
   const detail = error instanceof Error ? error.message : String(error);
@@ -376,9 +383,11 @@ const status = ({ strapi }) => ({
         versionCheck
       };
     }
-    const client = createS3Client(config);
+    const client = createR2Client(config);
     try {
-      await client.send(new clientS3.HeadBucketCommand({ Bucket: config.bucket }));
+      const url = buildBucketUrl(client.endpoint, config.bucket);
+      const response = await client.fetch(url, { method: "HEAD" });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
       return {
         pluginId: PLUGIN_ID,
         providerName,
