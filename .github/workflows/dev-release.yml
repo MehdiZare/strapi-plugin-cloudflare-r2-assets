@@ -52,7 +52,7 @@ jobs:
               per_page: 100,
             });
 
-            let releaseType = 'minor';
+            let releaseType = 'patch';
             let releasePr = '';
 
             if (prs.length > 0) {
@@ -203,7 +203,6 @@ jobs:
             automated
             release
           delete-branch: false
-          update-branch: true
           body: |
             ## Release Checklist
 
