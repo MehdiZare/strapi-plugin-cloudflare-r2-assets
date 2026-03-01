@@ -48,6 +48,12 @@ jobs:
 
       - name: Test
         run: npm test
+        env:
+          CF_R2_ACCOUNT_ID: ${{ secrets.CF_R2_ACCOUNT_ID }}
+          CF_R2_BUCKET: ${{ secrets.CF_R2_BUCKET }}
+          CF_R2_ACCESS_KEY_ID: ${{ secrets.CF_R2_ACCESS_KEY_ID }}
+          CF_R2_SECRET_ACCESS_KEY: ${{ secrets.CF_R2_SECRET_ACCESS_KEY }}
+          CF_PUBLIC_BASE_URL: ${{ secrets.CF_PUBLIC_BASE_URL }}
 
       - name: Verify package
         run: npm run verify

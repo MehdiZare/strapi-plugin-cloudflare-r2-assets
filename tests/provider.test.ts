@@ -2,32 +2,17 @@ import { Readable } from 'node:stream';
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const sendMock = vi.fn();
+const r2FetchMock = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>();
 
-vi.mock('@aws-sdk/client-s3', () => {
-  class S3Client {
-    send = sendMock;
-  }
-
-  class PutObjectCommand {
-    constructor(public readonly input: unknown) {}
-  }
-
-  class DeleteObjectCommand {
-    constructor(public readonly input: unknown) {}
-  }
-
-  class HeadBucketCommand {
-    constructor(public readonly input: unknown) {}
-  }
-
-  return {
-    S3Client,
-    PutObjectCommand,
-    DeleteObjectCommand,
-    HeadBucketCommand,
-  };
-});
+vi.mock('../src/shared/r2-client', () => ({
+  createR2Client: () => ({
+    fetch: r2FetchMock,
+    endpoint: 'https://acc_12345.r2.cloudflarestorage.com',
+    bucket: 'media',
+  }),
+  buildObjectUrl: (ep: string, b: string, k: string) => `${ep}/${b}/${k}`,
+  buildBucketUrl: (ep: string, b: string) => `${ep}/${b}`,
+}));
 
 import provider from '../src/provider/index';
 import type { ProviderUploadFile, RawPluginConfig } from '../src/shared/types';
@@ -54,8 +39,8 @@ const createFile = (overrides: Partial<ProviderUploadFile> = {}): ProviderUpload
 
 describe('provider upload', () => {
   beforeEach(() => {
-    sendMock.mockReset();
-    sendMock.mockResolvedValue({});
+    r2FetchMock.mockReset();
+    r2FetchMock.mockResolvedValue(new Response(null, { status: 200 }));
   });
 
   it('uploads using stream when buffer is absent', async () => {
@@ -65,9 +50,10 @@ describe('provider upload', () => {
     const file = createFile({ buffer: undefined, stream });
     await instance.uploadStream(file);
 
-    expect(sendMock).toHaveBeenCalledTimes(1);
-    const command = sendMock.mock.calls[0]?.[0] as { input: { Body: unknown } };
-    expect(command.input.Body).toBe(stream);
+    expect(r2FetchMock).toHaveBeenCalledTimes(1);
+    const [, init] = r2FetchMock.mock.calls[0]!;
+    expect(init?.method).toBe('PUT');
+    expect(init?.body).toBeDefined();
   });
 
   it('throws when file has neither buffer nor stream', async () => {
@@ -77,27 +63,40 @@ describe('provider upload', () => {
     await expect(instance.upload(file)).rejects.toThrow('missing both "buffer" and "stream"');
   });
 
-  it('throws with descriptive message and preserves cause when S3 upload fails', async () => {
-    const sdkError = new Error('AccessDenied');
-    sendMock.mockRejectedValueOnce(sdkError);
+  it('throws with descriptive message when HTTP upload fails', async () => {
+    r2FetchMock.mockResolvedValueOnce(new Response('AccessDenied', { status: 403 }));
     const instance = provider.init(baseOptions);
     const file = createFile({ buffer: Buffer.from('data') });
 
     const error = await instance.upload(file).catch((e: unknown) => e) as Error;
     expect(error).toBeInstanceOf(Error);
-    expect(error.message).toContain('Failed to upload object "uploads/abc123.jpg" to bucket "media": AccessDenied');
-    expect(error.cause).toBe(sdkError);
+    expect(error.message).toContain('Failed to upload object "uploads/abc123.jpg" to bucket "media"');
+    expect(error.message).toContain('403');
   });
 
-  it('passes CacheControl header to PutObjectCommand', async () => {
+  it('preserves cause when upload network request fails', async () => {
+    const networkError = new Error('ECONNREFUSED');
+    r2FetchMock.mockRejectedValueOnce(networkError);
+    const instance = provider.init(baseOptions);
+    const file = createFile({ buffer: Buffer.from('data') });
+
+    const error = await instance.upload(file).catch((e: unknown) => e) as Error;
+    expect(error).toBeInstanceOf(Error);
+    expect(error.message).toContain('Failed to upload object "uploads/abc123.jpg" to bucket "media"');
+    expect(error.message).toContain('ECONNREFUSED');
+    expect(error.cause).toBe(networkError);
+  });
+
+  it('passes CacheControl header to PUT request', async () => {
     const instance = provider.init({ ...baseOptions, cacheControl: 'public, max-age=31536000' });
     const file = createFile({ buffer: Buffer.from('data') });
 
     await instance.upload(file);
 
-    expect(sendMock).toHaveBeenCalledTimes(1);
-    const command = sendMock.mock.calls[0]?.[0] as { input: { CacheControl?: string } };
-    expect(command.input.CacheControl).toBe('public, max-age=31536000');
+    expect(r2FetchMock).toHaveBeenCalledTimes(1);
+    const [, init] = r2FetchMock.mock.calls[0]!;
+    const headers = init?.headers as Record<string, string>;
+    expect(headers['Cache-Control']).toBe('public, max-age=31536000');
   });
 
   it('sets file.url, provider_metadata, and formats after upload', async () => {
@@ -139,8 +138,8 @@ describe('provider upload', () => {
 
 describe('provider delete', () => {
   beforeEach(() => {
-    sendMock.mockReset();
-    sendMock.mockResolvedValue({});
+    r2FetchMock.mockReset();
+    r2FetchMock.mockResolvedValue(new Response(null, { status: 200 }));
   });
 
   it('deletes using sanitized provider metadata key', async () => {
@@ -152,10 +151,10 @@ describe('provider delete', () => {
       })
     );
 
-    expect(sendMock).toHaveBeenCalledTimes(1);
-    const command = sendMock.mock.calls[0]?.[0] as { input: { Bucket: string; Key: string } };
-    expect(command.input.Bucket).toBe('media');
-    expect(command.input.Key).toBe('uploads/a.jpg');
+    expect(r2FetchMock).toHaveBeenCalledTimes(1);
+    const [url, init] = r2FetchMock.mock.calls[0]!;
+    expect(init?.method).toBe('DELETE');
+    expect(url).toContain('/media/uploads/a.jpg');
   });
 
   it('falls back to extracting key from trusted public URL', async () => {
@@ -167,9 +166,9 @@ describe('provider delete', () => {
       })
     );
 
-    expect(sendMock).toHaveBeenCalledTimes(1);
-    const command = sendMock.mock.calls[0]?.[0] as { input: { Bucket: string; Key: string } };
-    expect(command.input.Key).toBe('uploads/from-url.jpg');
+    expect(r2FetchMock).toHaveBeenCalledTimes(1);
+    const [url] = r2FetchMock.mock.calls[0]!;
+    expect(url).toContain('/media/uploads/from-url.jpg');
   });
 
   it('skips delete when URL does not match the configured origin', async () => {
@@ -181,7 +180,7 @@ describe('provider delete', () => {
       })
     );
 
-    expect(sendMock).not.toHaveBeenCalled();
+    expect(r2FetchMock).not.toHaveBeenCalled();
   });
 
   it('skips delete for format variant URLs (cdn-cgi transform, no provider_metadata)', async () => {
@@ -194,7 +193,7 @@ describe('provider delete', () => {
       })
     );
 
-    expect(sendMock).not.toHaveBeenCalled();
+    expect(r2FetchMock).not.toHaveBeenCalled();
   });
 
   it('still deletes when provider_metadata exists even if URL looks like a transform URL', async () => {
@@ -207,13 +206,13 @@ describe('provider delete', () => {
       })
     );
 
-    expect(sendMock).toHaveBeenCalledTimes(1);
-    const command = sendMock.mock.calls[0]?.[0] as { input: { Key: string } };
-    expect(command.input.Key).toBe('uploads/abc123.jpg');
+    expect(r2FetchMock).toHaveBeenCalledTimes(1);
+    const [url] = r2FetchMock.mock.calls[0]!;
+    expect(url).toContain('/media/uploads/abc123.jpg');
   });
 
-  it('logs warning and does not throw when S3 delete fails', async () => {
-    sendMock.mockRejectedValueOnce(new Error('AccessDenied'));
+  it('logs warning and does not throw when delete fails', async () => {
+    r2FetchMock.mockRejectedValueOnce(new Error('AccessDenied'));
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const instance = provider.init(baseOptions);
 
@@ -229,8 +228,35 @@ describe('provider delete', () => {
     warnSpy.mockRestore();
   });
 
+  it('does not warn when DELETE returns 404', async () => {
+    r2FetchMock.mockResolvedValueOnce(new Response(null, { status: 404 }));
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const instance = provider.init(baseOptions);
+
+    await instance.delete(
+      createFile({ url: 'https://media.example.com/uploads/abc123.jpg' })
+    );
+
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
+  it('warns with HTTP status when DELETE returns 500', async () => {
+    r2FetchMock.mockResolvedValueOnce(new Response('Internal Server Error', { status: 500 }));
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const instance = provider.init(baseOptions);
+
+    await instance.delete(
+      createFile({ url: 'https://media.example.com/uploads/abc123.jpg' })
+    );
+
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('HTTP 500'));
+    warnSpy.mockRestore();
+  });
+
   it('warning includes the object key and error message', async () => {
-    sendMock.mockRejectedValueOnce(new Error('NoSuchBucket'));
+    r2FetchMock.mockRejectedValueOnce(new Error('NoSuchBucket'));
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const instance = provider.init(baseOptions);
 
@@ -252,24 +278,35 @@ describe('provider delete', () => {
 
 describe('provider healthCheck', () => {
   beforeEach(() => {
-    sendMock.mockReset();
-    sendMock.mockResolvedValue({});
+    r2FetchMock.mockReset();
+    r2FetchMock.mockResolvedValue(new Response(null, { status: 200 }));
   });
 
-  it('resolves when HeadBucket succeeds', async () => {
+  it('resolves when HEAD bucket succeeds', async () => {
     const instance = provider.init(baseOptions);
     await expect(instance.healthCheck()).resolves.toBeUndefined();
-    expect(sendMock).toHaveBeenCalledTimes(1);
+    expect(r2FetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it('throws with descriptive message and preserves cause when HeadBucket fails', async () => {
-    const sdkError = new Error('NotFound');
-    sendMock.mockRejectedValueOnce(sdkError);
+  it('throws with descriptive message when HEAD bucket returns non-ok', async () => {
+    r2FetchMock.mockResolvedValueOnce(new Response(null, { status: 404 }));
     const instance = provider.init(baseOptions);
 
     const error = await instance.healthCheck().catch((e: unknown) => e) as Error;
     expect(error).toBeInstanceOf(Error);
-    expect(error.message).toContain('Health check failed for bucket "media": NotFound');
-    expect(error.cause).toBe(sdkError);
+    expect(error.message).toContain('Health check failed for bucket "media"');
+    expect(error.message).toContain('404');
+  });
+
+  it('preserves cause when HEAD bucket network request fails', async () => {
+    const networkError = new Error('ECONNREFUSED');
+    r2FetchMock.mockRejectedValueOnce(networkError);
+    const instance = provider.init(baseOptions);
+
+    const error = await instance.healthCheck().catch((e: unknown) => e) as Error;
+    expect(error).toBeInstanceOf(Error);
+    expect(error.message).toContain('Health check failed for bucket "media"');
+    expect(error.message).toContain('ECONNREFUSED');
+    expect(error.cause).toBe(networkError);
   });
 });

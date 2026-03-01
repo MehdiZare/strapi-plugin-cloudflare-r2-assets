@@ -61,6 +61,7 @@ npm install strapi-plugin-cloudflare-r2-assets
 | `CF_IMAGE_QUALITY` | `82` | Image compression quality (1-100) |
 | `CF_IMAGE_MAX_FORMATS` | `4` | Maximum number of format variants (1-10) |
 | `CF_R2_CACHE_CONTROL` | — | Cache-Control header for uploaded objects |
+| `CF_R2_REQUEST_TIMEOUT` | `30000` | Request timeout in milliseconds |
 | `CF_R2_ENV_PREFIX` | — | Prefix for env keys (e.g. `APP_` reads `APP_CF_R2_ACCOUNT_ID`) |
 
 ## Strapi configuration

@@ -1,14 +1,15 @@
 "use strict";
 Object.defineProperties(exports, { __esModule: { value: true }, [Symbol.toStringTag]: { value: "Module" } });
-const clientS3 = require("@aws-sdk/client-s3");
+const aws4fetch = require("aws4fetch");
 const PLUGIN_ID = "cloudflare-r2-assets";
 const PROVIDER_PACKAGE_NAME = "strapi-plugin-cloudflare-r2-assets";
-const PLUGIN_VERSION = "0.0.1";
+const PLUGIN_VERSION = "0.1.0";
 const SETTINGS_READ_ACTION = `plugin::${PLUGIN_ID}.read`;
 const DEFAULT_IMAGE_FORMATS = ["webp", "avif"];
 const DEFAULT_QUALITY = 82;
 const DEFAULT_MAX_FORMATS = 4;
 const DEFAULT_BASE_PATH = "uploads";
+const DEFAULT_REQUEST_TIMEOUT_MS = 3e4;
 const ALLOWED_IMAGE_FORMATS = ["webp", "avif", "jpeg", "png"];
 const settings = ({ strapi }) => ({
   async status(ctx) {
@@ -130,6 +131,7 @@ const resolvePluginConfig = (options = {}, env = process.env) => {
   const quality = options.quality ?? parseInteger("CF_IMAGE_QUALITY", getEnv("CF_IMAGE_QUALITY")) ?? DEFAULT_QUALITY;
   const basePath = toTrimmedOrUndefined(options.basePath) ?? getEnv("CF_R2_BASE_PATH") ?? DEFAULT_BASE_PATH;
   const cacheControl = toTrimmedOrUndefined(options.cacheControl) ?? getEnv("CF_R2_CACHE_CONTROL");
+  const requestTimeout = options.requestTimeout ?? parseInteger("CF_R2_REQUEST_TIMEOUT", getEnv("CF_R2_REQUEST_TIMEOUT")) ?? DEFAULT_REQUEST_TIMEOUT_MS;
   const rawFormats = options.formats ?? getEnv("CF_IMAGE_FORMATS")?.split(",") ?? [...DEFAULT_IMAGE_FORMATS];
   const formats = normalizeFormats(rawFormats, maxFormats);
   const missing = [];
@@ -155,6 +157,9 @@ const resolvePluginConfig = (options = {}, env = process.env) => {
   if (quality < 1 || quality > 100) {
     throw new Error(`[${PLUGIN_ID}] quality must be between 1 and 100.`);
   }
+  if (!Number.isInteger(requestTimeout) || requestTimeout < 1) {
+    throw new Error(`[${PLUGIN_ID}] requestTimeout must be a positive integer.`);
+  }
   const resolvedAccountId = assertPresent(accountId, "CF_R2_ACCOUNT_ID");
   const resolvedBucket = assertPresent(bucket, "CF_R2_BUCKET");
   const resolvedEndpoint = assertPresent(endpoint, "CF_R2_ENDPOINT");
@@ -179,7 +184,9 @@ const resolvePluginConfig = (options = {}, env = process.env) => {
     formats,
     quality,
     maxFormats,
-    cacheControl
+    cacheControl,
+    requestTimeout,
+    maxUploadBufferBytes: options.maxUploadBufferBytes
   };
 };
 const maskEndpointAccountId = (endpoint, accountId) => {
@@ -200,7 +207,8 @@ const toPublicConfig = (config) => {
     formats: config.formats,
     quality: config.quality,
     maxFormats: config.maxFormats,
-    cacheControl: config.cacheControl
+    cacheControl: config.cacheControl,
+    requestTimeout: config.requestTimeout
   };
 };
 const ENV_KEY_DESCRIPTIONS = {
@@ -214,7 +222,8 @@ const ENV_KEY_DESCRIPTIONS = {
   CF_R2_CACHE_CONTROL: "Cache-Control header for uploaded objects",
   CF_IMAGE_FORMATS: "Comma-separated image output formats (e.g. webp,avif)",
   CF_IMAGE_QUALITY: "Image compression quality (1–100)",
-  CF_IMAGE_MAX_FORMATS: "Maximum number of image format variants (1–10)"
+  CF_IMAGE_MAX_FORMATS: "Maximum number of image format variants (1–10)",
+  CF_R2_REQUEST_TIMEOUT: `Fetch request timeout in milliseconds (default: ${DEFAULT_REQUEST_TIMEOUT_MS})`
 };
 const REQUIRED_ENV_KEYS = [
   "CF_R2_ACCOUNT_ID",
@@ -227,6 +236,7 @@ const OPTIONAL_ENV_KEYS = [
   "CF_R2_ENDPOINT",
   "CF_R2_BASE_PATH",
   "CF_R2_CACHE_CONTROL",
+  "CF_R2_REQUEST_TIMEOUT",
   "CF_IMAGE_FORMATS",
   "CF_IMAGE_QUALITY",
   "CF_IMAGE_MAX_FORMATS"
@@ -257,7 +267,8 @@ const checkEnvKeys = (options = {}, env = process.env) => {
     CF_R2_CACHE_CONTROL: "cacheControl",
     CF_IMAGE_FORMATS: "formats",
     CF_IMAGE_QUALITY: "quality",
-    CF_IMAGE_MAX_FORMATS: "maxFormats"
+    CF_IMAGE_MAX_FORMATS: "maxFormats",
+    CF_R2_REQUEST_TIMEOUT: "requestTimeout"
   };
   const isResolved = (key) => {
     const optKey = optionKeyMap[key];
@@ -285,14 +296,25 @@ const checkEnvKeys = (options = {}, env = process.env) => {
     ...OPTIONAL_ENV_KEYS.map((k) => toInfo(k, false))
   ];
 };
-const createS3Client = (config) => new clientS3.S3Client({
-  endpoint: config.endpoint,
-  region: "auto",
-  credentials: {
+const createR2Client = (config) => {
+  const aws = new aws4fetch.AwsClient({
     accessKeyId: config.accessKeyId,
-    secretAccessKey: config.secretAccessKey
-  }
-});
+    secretAccessKey: config.secretAccessKey,
+    service: "s3",
+    region: "auto"
+  });
+  const endpoint = config.endpoint.replace(/\/+$/, "");
+  const timeoutMs = config.requestTimeout;
+  return {
+    fetch: (url, init) => {
+      const signal = init?.signal ?? AbortSignal.timeout(timeoutMs);
+      return aws.fetch(url, { ...init, signal });
+    },
+    endpoint,
+    bucket: config.bucket
+  };
+};
+const buildBucketUrl = (endpoint, bucket) => `${endpoint}/${bucket}`;
 const redactSecrets = (input) => input.replace(/(secret(access)?key|access[_-]?key[_-]?id|token|password)\s*[:=]\s*([^\s,;]+)/gi, "$1=[REDACTED]").replace(/(authorization)\s*[:=]\s*([^\s,;]+)/gi, "$1=[REDACTED]");
 const logWarning = (strapi, message, error) => {
   const detail = error instanceof Error ? error.message : String(error);
@@ -376,46 +398,40 @@ const status = ({ strapi }) => ({
         versionCheck
       };
     }
-    const client = createS3Client(config);
+    const client = createR2Client(config);
+    const url = buildBucketUrl(client.endpoint, config.bucket);
+    let bucketOk = false;
     try {
-      await client.send(new clientS3.HeadBucketCommand({ Bucket: config.bucket }));
-      return {
-        pluginId: PLUGIN_ID,
-        providerName,
-        activeProvider: true,
-        configured: true,
-        warnings: [],
-        errors: [],
-        config: toPublicConfig(config),
-        envKeys: checkEnvKeys(providerOptions),
-        health: {
-          ok: true,
-          checkedAt: (/* @__PURE__ */ new Date()).toISOString(),
-          bucketReachable: true,
-          detail: "Bucket is reachable with current credentials."
-        },
-        versionCheck
-      };
+      const response = await client.fetch(url, { method: "HEAD" });
+      bucketOk = response.ok;
+      if (!response.ok) {
+        logWarning(strapi, "Bucket connectivity check failed", new Error(`HTTP ${response.status}`));
+      }
     } catch (error) {
       logWarning(strapi, "Bucket connectivity check failed", error);
-      return {
-        pluginId: PLUGIN_ID,
-        providerName,
-        activeProvider: true,
-        configured: true,
-        warnings: [],
-        errors: [],
-        config: toPublicConfig(config),
-        envKeys: checkEnvKeys(providerOptions),
-        health: {
-          ok: false,
-          checkedAt: (/* @__PURE__ */ new Date()).toISOString(),
-          bucketReachable: false,
-          detail: "Bucket connectivity check failed. Verify bucket name, endpoint, and credentials."
-        },
-        versionCheck
-      };
     }
+    return {
+      pluginId: PLUGIN_ID,
+      providerName,
+      activeProvider: true,
+      configured: true,
+      warnings: [],
+      errors: [],
+      config: toPublicConfig(config),
+      envKeys: checkEnvKeys(providerOptions),
+      health: bucketOk ? {
+        ok: true,
+        checkedAt: (/* @__PURE__ */ new Date()).toISOString(),
+        bucketReachable: true,
+        detail: "Bucket is reachable with current credentials."
+      } : {
+        ok: false,
+        checkedAt: (/* @__PURE__ */ new Date()).toISOString(),
+        bucketReachable: false,
+        detail: "Bucket connectivity check failed. Verify bucket name, endpoint, and credentials."
+      },
+      versionCheck
+    };
   }
 });
 const services = {

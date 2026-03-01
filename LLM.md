@@ -76,6 +76,7 @@ Optional:
 - `CF_IMAGE_QUALITY`
 - `CF_IMAGE_MAX_FORMATS`
 - `CF_R2_CACHE_CONTROL`
+- `CF_R2_REQUEST_TIMEOUT` (fetch timeout in milliseconds; default: `30000`)
 - `CF_R2_ENV_PREFIX`
 
 ## Env prefix mode
@@ -168,7 +169,7 @@ Both lanes validate build/test/verify and artifact checks before publish.
 
 ## Supply-chain alerts
 
-Supply-chain scanners (e.g. Socket.dev) may report high alerts against this plugin. All current alerts originate from upstream Strapi peer/dev dependencies — not from this plugin's sole production dependency (`@aws-sdk/client-s3`).
+Supply-chain scanners (e.g. Socket.dev) may report high alerts against this plugin. Current alerts originate from upstream Strapi peer/dev dependencies — not from this plugin's current production dependency set (`aws4fetch`). Since `aws4fetch` has zero transitive dependencies, direct supply-chain risk from this plugin remains low.
 
 Known alerts and mitigations:
 

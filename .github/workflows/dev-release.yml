@@ -39,7 +39,7 @@ jobs:
 
       - name: Resolve release type from dev->main PR labels
         id: release_type
-        uses: actions/github-script@v8
+        uses: actions/github-script@v8.0.0
         with:
           script: |
             const { owner, repo } = context.repo;
@@ -52,7 +52,7 @@ jobs:
               per_page: 100,
             });
 
-            let releaseType = 'minor';
+            let releaseType = 'patch';
             let releasePr = '';
 
             if (prs.length > 0) {
@@ -203,7 +203,6 @@ jobs:
             automated
             release
           delete-branch: false
-          update-branch: true
           body: |
             ## Release Checklist
 
