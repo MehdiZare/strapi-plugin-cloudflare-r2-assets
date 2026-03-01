@@ -26,6 +26,7 @@ const baseConfig: ResolvedPluginConfig = {
   formats: ['webp', 'avif'],
   quality: 82,
   maxFormats: 4,
+  requestTimeout: 30_000,
 };
 
 describe('createR2Client', () => {
@@ -67,7 +68,7 @@ describe('createR2Client', () => {
     const client = createR2Client(baseConfig);
     const result = await client.fetch('https://example.com/test', { method: 'GET' });
 
-    expect(awsFetchSpy).toHaveBeenCalledWith('https://example.com/test', { method: 'GET' });
+    expect(awsFetchSpy).toHaveBeenCalledWith('https://example.com/test', expect.objectContaining({ method: 'GET' }));
     expect(result).toBe(mockResponse);
   });
 });

@@ -16,8 +16,12 @@ export const createR2Client = (config: ResolvedPluginConfig): R2Client => {
     region: 'auto',
   });
   const endpoint = config.endpoint.replace(/\/+$/, '');
+  const timeoutMs = config.requestTimeout;
   return {
-    fetch: (url, init) => aws.fetch(url, init),
+    fetch: (url, init) => {
+      const signal = init?.signal ?? AbortSignal.timeout(timeoutMs);
+      return aws.fetch(url, { ...init, signal });
+    },
     endpoint,
     bucket: config.bucket,
   };

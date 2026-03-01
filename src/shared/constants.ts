@@ -8,4 +8,6 @@ export const DEFAULT_QUALITY = 82;
 export const DEFAULT_MAX_FORMATS = 4;
 export const DEFAULT_BASE_PATH = 'uploads';
 
+export const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
+
 export const ALLOWED_IMAGE_FORMATS = ['webp', 'avif', 'jpeg', 'png'] as const;

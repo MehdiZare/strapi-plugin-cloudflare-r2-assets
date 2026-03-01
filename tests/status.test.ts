@@ -47,10 +47,16 @@ const r2EnvKeys = [
   'CF_R2_ACCESS_KEY_ID',
   'CF_R2_SECRET_ACCESS_KEY',
   'CF_PUBLIC_BASE_URL',
+  'CMS_CF_R2_ACCOUNT_ID',
+  'CMS_CF_R2_BUCKET',
+  'CMS_CF_R2_ACCESS_KEY_ID',
+  'CMS_CF_R2_SECRET_ACCESS_KEY',
+  'CMS_CF_PUBLIC_BASE_URL',
 ] as const;
 
 const savedEnv: Record<string, string | undefined> = {};
 const fetchMock = vi.fn<typeof global.fetch>();
+const originalFetch = global.fetch;
 
 describe('status service', () => {
   beforeEach(() => {
@@ -63,6 +69,7 @@ describe('status service', () => {
   });
 
   afterEach(() => {
+    global.fetch = originalFetch;
     for (const key of r2EnvKeys) {
       if (savedEnv[key] === undefined) delete process.env[key];
       else process.env[key] = savedEnv[key];
@@ -93,6 +100,11 @@ describe('status service', () => {
     delete process.env.CF_R2_ACCESS_KEY_ID;
     delete process.env.CF_R2_SECRET_ACCESS_KEY;
     delete process.env.CF_PUBLIC_BASE_URL;
+    delete process.env.CMS_CF_R2_ACCOUNT_ID;
+    delete process.env.CMS_CF_R2_BUCKET;
+    delete process.env.CMS_CF_R2_ACCESS_KEY_ID;
+    delete process.env.CMS_CF_R2_SECRET_ACCESS_KEY;
+    delete process.env.CMS_CF_PUBLIC_BASE_URL;
 
     const strapi = createStrapi({
       provider: 'strapi-plugin-cloudflare-r2-assets',
