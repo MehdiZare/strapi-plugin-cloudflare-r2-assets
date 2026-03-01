@@ -116,15 +116,16 @@ const provider = {
               const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
               totalBytes += buf.length;
               if (totalBytes > maxBufferBytes) {
-                throw new Error(
-                  `[${PLUGIN_ID}] Upload stream for "${file.name}" exceeded maximum buffer size of ${maxBufferBytes} bytes`,
-                );
+                break;
               }
               chunks.push(buf);
             }
           } catch (error) {
             const detail = error instanceof Error ? error.message : String(error);
             throw new Error(`[${PLUGIN_ID}] Failed to buffer upload stream for "${file.name}": ${detail}`, { cause: error });
+          }
+          if (totalBytes > maxBufferBytes) {
+            throw new Error(`[${PLUGIN_ID}] Upload stream for "${file.name}" exceeded maximum buffer size of ${maxBufferBytes} bytes`);
           }
           file.buffer = Buffer.concat(chunks);
           file.stream = undefined;
