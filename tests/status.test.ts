@@ -116,6 +116,24 @@ describe('status service', () => {
     expect(warnMessage).toContain('ETIMEDOUT');
   });
 
+  it('returns unhealthy status when bucket check returns non-ok HTTP response', async () => {
+    r2FetchMock.mockResolvedValueOnce(new Response(null, { status: 403 }));
+
+    const strapi = createStrapi({
+      provider: 'strapi-plugin-cloudflare-r2-assets',
+      providerOptions,
+    });
+    const service = createStatusService({ strapi });
+    const result = await service.getStatus();
+
+    expect(result.configured).toBe(true);
+    expect(result.health?.ok).toBe(false);
+    expect(result.health?.bucketReachable).toBe(false);
+    expect(strapi.log.warn).toHaveBeenCalledTimes(1);
+    const warnMessage = strapi.log.warn.mock.calls[0]?.[0] as string;
+    expect(warnMessage).toContain('HTTP 403');
+  });
+
   it('returns healthy status when bucket check succeeds', async () => {
     r2FetchMock.mockResolvedValueOnce(new Response(null, { status: 200 }));
 

@@ -228,6 +228,33 @@ describe('provider delete', () => {
     warnSpy.mockRestore();
   });
 
+  it('does not warn when DELETE returns 404', async () => {
+    r2FetchMock.mockResolvedValueOnce(new Response(null, { status: 404 }));
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const instance = provider.init(baseOptions);
+
+    await instance.delete(
+      createFile({ url: 'https://media.example.com/uploads/abc123.jpg' })
+    );
+
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
+  it('warns with HTTP status when DELETE returns 500', async () => {
+    r2FetchMock.mockResolvedValueOnce(new Response('Internal Server Error', { status: 500 }));
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const instance = provider.init(baseOptions);
+
+    await instance.delete(
+      createFile({ url: 'https://media.example.com/uploads/abc123.jpg' })
+    );
+
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('HTTP 500'));
+    warnSpy.mockRestore();
+  });
+
   it('warning includes the object key and error message', async () => {
     r2FetchMock.mockRejectedValueOnce(new Error('NoSuchBucket'));
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
