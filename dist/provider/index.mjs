@@ -338,8 +338,13 @@ const provider = {
       async uploadStream(file) {
         if (file.stream && !file.buffer) {
           const chunks = [];
-          for await (const chunk of file.stream) {
-            chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+          try {
+            for await (const chunk of file.stream) {
+              chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+            }
+          } catch (error) {
+            const detail = error instanceof Error ? error.message : String(error);
+            throw new Error(`[${PLUGIN_ID}] Failed to buffer upload stream for "${file.name}": ${detail}`, { cause: error });
           }
           file.buffer = Buffer.concat(chunks);
           file.stream = void 0;

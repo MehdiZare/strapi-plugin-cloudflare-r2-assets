@@ -7,9 +7,17 @@
 - Replaced `@aws-sdk/client-s3` with lightweight `aws4fetch` — direct HTTP fetch calls to R2 instead of S3 SDK commands, zero transitive production dependencies
 - Improved error handling for R2 connectivity and request failures
 
+### Fixed
+
+- `uploadStream()` now buffers streams before uploading — fixes HTTP 411 (MissingContentLength) errors on image uploads through Strapi's processing pipeline
+- `PLUGIN_VERSION` constant synced to match `package.json` version
+- Provider `.d.ts` types now export proper `ProviderUploadFile` and `RawPluginConfig` types instead of `Record<string, unknown>`
+- Added `@strapi/design-system` to `peerDependencies` to prevent admin bundle bloat from bundling the entire library
+
 ### Added
 
 - `CF_R2_REQUEST_TIMEOUT` env variable for configuring fetch request timeout in milliseconds (default: 30000)
+- E2E test suite: full Strapi 5 instance lifecycle with upload, download verification, delete, and R2 cleanup validation
 
 ### Developer Experience
 

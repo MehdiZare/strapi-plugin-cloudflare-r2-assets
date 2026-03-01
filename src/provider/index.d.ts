@@ -1,10 +1,12 @@
+import type { ProviderUploadFile, RawPluginConfig } from '../shared/types';
+
 declare const provider: {
-  init(providerOptions?: Record<string, unknown>): {
-    upload(file: Record<string, unknown>): Promise<void>;
-    uploadStream(file: Record<string, unknown>): Promise<void>;
-    delete(file: Record<string, unknown>): Promise<void>;
+  init(providerOptions?: RawPluginConfig): {
+    upload(file: ProviderUploadFile): Promise<void>;
+    uploadStream(file: ProviderUploadFile): Promise<void>;
+    delete(file: ProviderUploadFile): Promise<void>;
     isPrivate(): boolean;
-    getSignedUrl(file: Record<string, unknown>): Promise<Record<string, unknown>>;
+    getSignedUrl(file: ProviderUploadFile): Promise<ProviderUploadFile>;
     healthCheck(): Promise<void>;
   };
 };

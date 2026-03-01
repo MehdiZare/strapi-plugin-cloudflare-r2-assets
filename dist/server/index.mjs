@@ -1,7 +1,7 @@
 import { AwsClient } from "aws4fetch";
 const PLUGIN_ID = "cloudflare-r2-assets";
 const PROVIDER_PACKAGE_NAME = "strapi-plugin-cloudflare-r2-assets";
-const PLUGIN_VERSION = "0.0.1";
+const PLUGIN_VERSION = "0.1.0";
 const SETTINGS_READ_ACTION = `plugin::${PLUGIN_ID}.read`;
 const DEFAULT_IMAGE_FORMATS = ["webp", "avif"];
 const DEFAULT_QUALITY = 82;
