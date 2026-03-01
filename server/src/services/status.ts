@@ -1,8 +1,6 @@
-import { HeadBucketCommand } from '@aws-sdk/client-s3';
-
 import { PLUGIN_ID, PLUGIN_VERSION, PROVIDER_PACKAGE_NAME } from '../../../src/shared/constants';
 import { checkEnvKeys, resolvePluginConfig, toPublicConfig } from '../../../src/shared/config';
-import { createS3Client } from '../../../src/shared/s3-client';
+import { createR2Client, buildBucketUrl } from '../../../src/shared/r2-client';
 import type { RawPluginConfig, SettingsStatusResponse, VersionCheck } from '../../../src/shared/types';
 
 type StrapiLike = {
@@ -135,48 +133,43 @@ export default ({ strapi }: { strapi: StrapiLike }) => ({
       };
     }
 
-    const client = createS3Client(config);
+    const client = createR2Client(config);
+    const url = buildBucketUrl(client.endpoint, config.bucket);
 
+    let bucketOk = false;
     try {
-      await client.send(new HeadBucketCommand({ Bucket: config.bucket }));
-
-      return {
-        pluginId: PLUGIN_ID,
-        providerName,
-        activeProvider: true,
-        configured: true,
-        warnings: [],
-        errors: [],
-        config: toPublicConfig(config),
-        envKeys: checkEnvKeys(providerOptions),
-        health: {
-          ok: true,
-          checkedAt: new Date().toISOString(),
-          bucketReachable: true,
-          detail: 'Bucket is reachable with current credentials.',
-        },
-        versionCheck,
-      };
+      const response = await client.fetch(url, { method: 'HEAD' });
+      bucketOk = response.ok;
+      if (!response.ok) {
+        logWarning(strapi, 'Bucket connectivity check failed', new Error(`HTTP ${response.status}`));
+      }
     } catch (error) {
       logWarning(strapi, 'Bucket connectivity check failed', error);
-
-      return {
-        pluginId: PLUGIN_ID,
-        providerName,
-        activeProvider: true,
-        configured: true,
-        warnings: [],
-        errors: [],
-        config: toPublicConfig(config),
-        envKeys: checkEnvKeys(providerOptions),
-        health: {
-          ok: false,
-          checkedAt: new Date().toISOString(),
-          bucketReachable: false,
-          detail: 'Bucket connectivity check failed. Verify bucket name, endpoint, and credentials.',
-        },
-        versionCheck,
-      };
     }
+
+    return {
+      pluginId: PLUGIN_ID,
+      providerName,
+      activeProvider: true,
+      configured: true,
+      warnings: [],
+      errors: [],
+      config: toPublicConfig(config),
+      envKeys: checkEnvKeys(providerOptions),
+      health: bucketOk
+        ? {
+            ok: true,
+            checkedAt: new Date().toISOString(),
+            bucketReachable: true,
+            detail: 'Bucket is reachable with current credentials.',
+          }
+        : {
+            ok: false,
+            checkedAt: new Date().toISOString(),
+            bucketReachable: false,
+            detail: 'Bucket connectivity check failed. Verify bucket name, endpoint, and credentials.',
+          },
+      versionCheck,
+    };
   },
 });

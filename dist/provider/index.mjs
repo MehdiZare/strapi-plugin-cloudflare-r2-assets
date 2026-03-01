@@ -1,10 +1,12 @@
-import { S3Client, HeadBucketCommand, DeleteObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
+import { Readable } from "node:stream";
+import { AwsClient } from "aws4fetch";
 const PLUGIN_ID = "cloudflare-r2-assets";
 const PROVIDER_PACKAGE_NAME = "strapi-plugin-cloudflare-r2-assets";
 const DEFAULT_IMAGE_FORMATS = ["webp", "avif"];
 const DEFAULT_QUALITY = 82;
 const DEFAULT_MAX_FORMATS = 4;
 const DEFAULT_BASE_PATH = "uploads";
+const DEFAULT_REQUEST_TIMEOUT_MS = 3e4;
 const ALLOWED_IMAGE_FORMATS = ["webp", "avif", "jpeg", "png"];
 const ALLOWED_FORMAT_SET = new Set(ALLOWED_IMAGE_FORMATS);
 const parseInteger = (name, value) => {
@@ -94,6 +96,7 @@ const resolvePluginConfig = (options = {}, env = process.env) => {
   const quality = options.quality ?? parseInteger("CF_IMAGE_QUALITY", getEnv("CF_IMAGE_QUALITY")) ?? DEFAULT_QUALITY;
   const basePath = toTrimmedOrUndefined(options.basePath) ?? getEnv("CF_R2_BASE_PATH") ?? DEFAULT_BASE_PATH;
   const cacheControl = toTrimmedOrUndefined(options.cacheControl) ?? getEnv("CF_R2_CACHE_CONTROL");
+  const requestTimeout = options.requestTimeout ?? parseInteger("CF_R2_REQUEST_TIMEOUT", getEnv("CF_R2_REQUEST_TIMEOUT")) ?? DEFAULT_REQUEST_TIMEOUT_MS;
   const rawFormats = options.formats ?? getEnv("CF_IMAGE_FORMATS")?.split(",") ?? [...DEFAULT_IMAGE_FORMATS];
   const formats = normalizeFormats(rawFormats, maxFormats);
   const missing = [];
@@ -119,6 +122,9 @@ const resolvePluginConfig = (options = {}, env = process.env) => {
   if (quality < 1 || quality > 100) {
     throw new Error(`[${PLUGIN_ID}] quality must be between 1 and 100.`);
   }
+  if (!Number.isInteger(requestTimeout) || requestTimeout < 1) {
+    throw new Error(`[${PLUGIN_ID}] requestTimeout must be a positive integer.`);
+  }
   const resolvedAccountId = assertPresent(accountId, "CF_R2_ACCOUNT_ID");
   const resolvedBucket = assertPresent(bucket, "CF_R2_BUCKET");
   const resolvedEndpoint = assertPresent(endpoint, "CF_R2_ENDPOINT");
@@ -143,7 +149,8 @@ const resolvePluginConfig = (options = {}, env = process.env) => {
     formats,
     quality,
     maxFormats,
-    cacheControl
+    cacheControl,
+    requestTimeout
   };
 };
 const trimSlash = (value) => value.replace(/^\/+|\/+$/g, "");
@@ -215,14 +222,26 @@ const extractObjectKeyFromPublicUrl = (publicBaseUrl, fileUrl) => {
   }
   return key;
 };
-const createS3Client = (config) => new S3Client({
-  endpoint: config.endpoint,
-  region: "auto",
-  credentials: {
+const createR2Client = (config) => {
+  const aws = new AwsClient({
     accessKeyId: config.accessKeyId,
-    secretAccessKey: config.secretAccessKey
-  }
-});
+    secretAccessKey: config.secretAccessKey,
+    service: "s3",
+    region: "auto"
+  });
+  const endpoint = config.endpoint.replace(/\/+$/, "");
+  const timeoutMs = config.requestTimeout;
+  return {
+    fetch: (url, init2) => {
+      const signal = init2?.signal ?? AbortSignal.timeout(timeoutMs);
+      return aws.fetch(url, { ...init2, signal });
+    },
+    endpoint,
+    bucket: config.bucket
+  };
+};
+const buildObjectUrl = (endpoint, bucket, key) => `${endpoint}/${bucket}/${key}`;
+const buildBucketUrl = (endpoint, bucket) => `${endpoint}/${bucket}`;
 const stripTrailingSlash = (value) => value.replace(/\/+$/g, "");
 const ensureLeadingSlash = (value) => value.startsWith("/") ? value : `/${value}`;
 const buildPublicObjectUrl = (publicBaseUrl, objectKey) => {
@@ -238,7 +257,7 @@ const buildResizedUrl = (config, sourceUrl, format) => {
 const isImageMimeType = (mime) => mime.toLowerCase().startsWith("image/");
 const initProvider = (options = {}) => {
   const config = resolvePluginConfig(options);
-  const client = createS3Client(config);
+  const client = createR2Client(config);
   return { client, config };
 };
 const buildDerivedFormats = (file, sourceUrl, options) => {
@@ -270,7 +289,7 @@ const resolveBody = (file) => {
     return file.buffer;
   }
   if (file.stream) {
-    return file.stream;
+    return Readable.toWeb(file.stream);
   }
   throw new Error(`[${PLUGIN_ID}] File is missing both "buffer" and "stream".`);
 };
@@ -284,19 +303,24 @@ const provider = {
     const upload = async (file) => {
       const objectKey = resolveObjectKey(file, config.basePath);
       const body = resolveBody(file);
+      const url = buildObjectUrl(client.endpoint, config.bucket, objectKey);
+      const headers = { "Content-Type": file.mime };
+      if (config.cacheControl) headers["Cache-Control"] = config.cacheControl;
+      let response;
       try {
-        await client.send(
-          new PutObjectCommand({
-            Bucket: config.bucket,
-            Key: objectKey,
-            Body: body,
-            ContentType: file.mime,
-            CacheControl: config.cacheControl
-          })
-        );
+        response = await client.fetch(url, {
+          method: "PUT",
+          headers,
+          body,
+          duplex: "half"
+        });
       } catch (error) {
         const detail = error instanceof Error ? error.message : String(error);
         throw new Error(`[${PLUGIN_ID}] Failed to upload object "${objectKey}" to bucket "${config.bucket}": ${detail}`, { cause: error });
+      }
+      if (!response.ok) {
+        const text = await response.text().catch(() => "");
+        throw new Error(`[${PLUGIN_ID}] Failed to upload object "${objectKey}" to bucket "${config.bucket}": HTTP ${response.status}${text ? `: ${text}` : ""}`);
       }
       const sourceUrl = buildPublicObjectUrl(config.publicBaseUrl, objectKey);
       file.url = sourceUrl;
@@ -324,16 +348,18 @@ const provider = {
         if (!objectKey) {
           return;
         }
+        const url = buildObjectUrl(client.endpoint, config.bucket, objectKey);
+        let response;
         try {
-          await client.send(
-            new DeleteObjectCommand({
-              Bucket: config.bucket,
-              Key: objectKey
-            })
-          );
+          response = await client.fetch(url, { method: "DELETE" });
         } catch (error) {
           const detail = error instanceof Error ? error.message : String(error);
           console.warn(`[${PLUGIN_ID}] Failed to delete object "${objectKey}" from bucket "${config.bucket}": ${detail}`);
+          return;
+        }
+        if (!response.ok && response.status !== 404) {
+          const text = await response.text().catch(() => "");
+          console.warn(`[${PLUGIN_ID}] Failed to delete object "${objectKey}" from bucket "${config.bucket}": HTTP ${response.status}${text ? `: ${text}` : ""}`);
         }
       },
       isPrivate() {
@@ -343,11 +369,16 @@ const provider = {
         return file;
       },
       async healthCheck() {
+        const url = buildBucketUrl(client.endpoint, config.bucket);
+        let response;
         try {
-          await client.send(new HeadBucketCommand({ Bucket: config.bucket }));
+          response = await client.fetch(url, { method: "HEAD" });
         } catch (error) {
           const detail = error instanceof Error ? error.message : String(error);
           throw new Error(`[${PLUGIN_ID}] Health check failed for bucket "${config.bucket}": ${detail}`, { cause: error });
+        }
+        if (!response.ok) {
+          throw new Error(`[${PLUGIN_ID}] Health check failed for bucket "${config.bucket}": HTTP ${response.status}`);
         }
       }
     };
