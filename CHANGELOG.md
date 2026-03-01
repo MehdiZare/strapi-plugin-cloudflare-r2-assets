@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- Replaced `@aws-sdk/client-s3` with lightweight `aws4fetch` — direct HTTP fetch calls to R2 instead of S3 SDK commands, zero transitive production dependencies
+- Improved error handling for R2 connectivity and request failures
+
+### Added
+
+- `CF_R2_REQUEST_TIMEOUT` env variable for configuring fetch request timeout in milliseconds (default: 30000)
+
+### Developer Experience
+
+- R2 integration tests refactored to use provider API directly
+- Expanded test coverage for timeout and request handling scenarios
+
 ## 0.1.0
 
 Initial release of the Strapi 5 upload provider for Cloudflare R2.

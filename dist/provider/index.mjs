@@ -336,6 +336,14 @@ const provider = {
         await upload(file);
       },
       async uploadStream(file) {
+        if (file.stream && !file.buffer) {
+          const chunks = [];
+          for await (const chunk of file.stream) {
+            chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+          }
+          file.buffer = Buffer.concat(chunks);
+          file.stream = void 0;
+        }
         await upload(file);
       },
       async delete(file) {

@@ -76,6 +76,7 @@ Optional:
 - `CF_IMAGE_QUALITY`
 - `CF_IMAGE_MAX_FORMATS`
 - `CF_R2_CACHE_CONTROL`
+- `CF_R2_REQUEST_TIMEOUT` (fetch timeout in milliseconds; default: `30000`)
 - `CF_R2_ENV_PREFIX`
 
 ## Env prefix mode

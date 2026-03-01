@@ -105,6 +105,16 @@ const provider = {
         await upload(file);
       },
       async uploadStream(file: ProviderUploadFile) {
+        // R2 requires Content-Length on PUT. Streams don't provide it,
+        // so buffer the stream before uploading.
+        if (file.stream && !file.buffer) {
+          const chunks: Buffer[] = [];
+          for await (const chunk of file.stream) {
+            chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+          }
+          file.buffer = Buffer.concat(chunks);
+          file.stream = undefined;
+        }
         await upload(file);
       },
       async delete(file: ProviderUploadFile) {
