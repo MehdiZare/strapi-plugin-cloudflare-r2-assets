@@ -12,8 +12,8 @@ import { Readable } from 'node:stream';
 
 import { describe, expect, it } from 'vitest';
 
-import { createR2Client, buildObjectUrl, buildBucketUrl } from '../src/shared/r2-client';
-import { resolvePluginConfig } from '../src/shared/config';
+import { init } from '../src/provider/index';
+import type { ProviderUploadFile } from '../src/shared/types';
 
 const hasR2Credentials = !!(
   process.env.CF_R2_ACCOUNT_ID &&
@@ -22,88 +22,90 @@ const hasR2Credentials = !!(
   process.env.CF_R2_SECRET_ACCESS_KEY
 );
 
-const config = hasR2Credentials
-  ? resolvePluginConfig({
-      accountId: process.env.CF_R2_ACCOUNT_ID,
-      bucket: process.env.CF_R2_BUCKET,
-      accessKeyId: process.env.CF_R2_ACCESS_KEY_ID,
-      secretAccessKey: process.env.CF_R2_SECRET_ACCESS_KEY,
+const providerOptions = hasR2Credentials
+  ? {
+      accountId: process.env.CF_R2_ACCOUNT_ID!,
+      bucket: process.env.CF_R2_BUCKET!,
+      accessKeyId: process.env.CF_R2_ACCESS_KEY_ID!,
+      secretAccessKey: process.env.CF_R2_SECRET_ACCESS_KEY!,
       publicBaseUrl: process.env.CF_PUBLIC_BASE_URL ?? 'https://placeholder.example.com',
-    })
+      basePath: `__integration-test/${Date.now()}`,
+    }
   : null;
 
-const testPrefix = `__integration-test/${Date.now()}`;
+const createFile = (overrides: Partial<ProviderUploadFile> = {}): ProviderUploadFile => ({
+  name: 'test-file.txt',
+  hash: `test_${Date.now()}`,
+  ext: '.txt',
+  mime: 'text/plain',
+  size: 16,
+  url: '',
+  buffer: Buffer.from('integration-test'),
+  ...overrides,
+});
 
-describe.skipIf(!hasR2Credentials)('R2 integration', () => {
-  it('HEAD bucket succeeds with valid credentials', async () => {
-    const client = createR2Client(config!);
-    const url = buildBucketUrl(client.endpoint, config!.bucket);
-    const response = await client.fetch(url, { method: 'HEAD' });
+describe.skipIf(!hasR2Credentials)('R2 provider integration', () => {
+  it('upload() stores a Buffer and mutates the file object', async () => {
+    const provider = init(providerOptions!);
+    const file = createFile();
 
-    expect(response.ok).toBe(true);
-  });
+    await provider.upload(file);
 
-  it('PUT uploads a Buffer body', async () => {
-    const client = createR2Client(config!);
-    const key = `${testPrefix}/buffer.txt`;
-    const url = buildObjectUrl(client.endpoint, config!.bucket, key);
-
-    const response = await client.fetch(url, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'text/plain' },
-      body: Buffer.from('buffer-test-data'),
-      duplex: 'half',
-    } as RequestInit);
-
-    expect(response.ok).toBe(true);
-
-    // cleanup
-    await client.fetch(url, { method: 'DELETE' });
-  });
-
-  it('PUT uploads a ReadableStream body via Readable.toWeb()', async () => {
-    const client = createR2Client(config!);
-    const key = `${testPrefix}/stream.txt`;
-    const url = buildObjectUrl(client.endpoint, config!.bucket, key);
-
-    const stream = Readable.toWeb(Readable.from(Buffer.from('stream-test-data'))) as ReadableStream;
-    const response = await client.fetch(url, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'text/plain' },
-      body: stream,
-      duplex: 'half',
-    } as RequestInit);
-
-    expect(response.ok).toBe(true);
+    expect(file.url).toContain(file.hash);
+    expect(file.provider).toBe('strapi-plugin-cloudflare-r2-assets');
+    expect(file.provider_metadata).toMatchObject({
+      bucket: providerOptions!.bucket,
+      key: expect.stringContaining(file.hash),
+    });
 
     // cleanup
-    await client.fetch(url, { method: 'DELETE' });
+    await provider.delete(file);
   });
 
-  it('DELETE succeeds for an existing object', async () => {
-    const client = createR2Client(config!);
-    const key = `${testPrefix}/to-delete.txt`;
-    const url = buildObjectUrl(client.endpoint, config!.bucket, key);
+  it('uploadStream() stores a Readable stream', async () => {
+    const provider = init(providerOptions!);
+    const file = createFile({
+      hash: `stream_${Date.now()}`,
+      buffer: undefined,
+      stream: Readable.from(Buffer.from('stream-integration-test')),
+    });
 
-    // create first
-    await client.fetch(url, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'text/plain' },
-      body: Buffer.from('delete-me'),
-      duplex: 'half',
-    } as RequestInit);
+    await provider.uploadStream(file);
 
-    const response = await client.fetch(url, { method: 'DELETE' });
-    expect(response.ok).toBe(true);
+    expect(file.url).toContain(file.hash);
+    expect(file.provider_metadata?.key).toContain(file.hash);
+
+    // cleanup
+    await provider.delete(file);
   });
 
-  it('DELETE returns 2xx for a non-existent object', async () => {
-    const client = createR2Client(config!);
-    const key = `${testPrefix}/nonexistent-${Date.now()}.txt`;
-    const url = buildObjectUrl(client.endpoint, config!.bucket, key);
+  it('delete() removes an uploaded object without error', async () => {
+    const provider = init(providerOptions!);
+    const file = createFile({ hash: `delete_${Date.now()}` });
 
-    const response = await client.fetch(url, { method: 'DELETE' });
-    expect(response.status).toBeGreaterThanOrEqual(200);
-    expect(response.status).toBeLessThan(300);
+    await provider.upload(file);
+    // should not throw
+    await provider.delete(file);
+  });
+
+  it('delete() succeeds silently for a non-existent object', async () => {
+    const provider = init(providerOptions!);
+    const file = createFile({ hash: `ghost_${Date.now()}` });
+
+    // simulate a file that was "uploaded" but already removed
+    file.url = `${providerOptions!.publicBaseUrl}/${providerOptions!.basePath}/${file.hash}.txt`;
+    file.provider_metadata = {
+      bucket: providerOptions!.bucket,
+      key: `${providerOptions!.basePath}/${file.hash}.txt`,
+    };
+
+    // should not throw
+    await provider.delete(file);
+  });
+
+  it('healthCheck() succeeds with valid credentials', async () => {
+    const provider = init(providerOptions!);
+    // should not throw
+    await provider.healthCheck();
   });
 });
