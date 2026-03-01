@@ -4,8 +4,9 @@
  * Skipped unless all required env vars are set:
  *   CF_R2_ACCOUNT_ID, CF_R2_BUCKET, CF_R2_ACCESS_KEY_ID, CF_R2_SECRET_ACCESS_KEY
  *
- * Run manually:
- *   CF_R2_ACCOUNT_ID=… CF_R2_BUCKET=… CF_R2_ACCESS_KEY_ID=… CF_R2_SECRET_ACCESS_KEY=… npm test
+ * Setup:
+ *   cp .env.test.example .env.test   # then fill in credentials
+ *   npm test
  */
 import { Readable } from 'node:stream';
 
