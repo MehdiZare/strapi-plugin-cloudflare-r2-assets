@@ -3,12 +3,8 @@ const PLUGIN_ID = "cloudflare-r2-assets";
 const PROVIDER_PACKAGE_NAME = "strapi-plugin-cloudflare-r2-assets";
 const PLUGIN_VERSION = "0.1.0";
 const SETTINGS_READ_ACTION = `plugin::${PLUGIN_ID}.read`;
-const DEFAULT_IMAGE_FORMATS = ["webp", "avif"];
-const DEFAULT_QUALITY = 82;
-const DEFAULT_MAX_FORMATS = 4;
 const DEFAULT_BASE_PATH = "uploads";
 const DEFAULT_REQUEST_TIMEOUT_MS = 3e4;
-const ALLOWED_IMAGE_FORMATS = ["webp", "avif", "jpeg", "png"];
 const settings = ({ strapi }) => ({
   async status(ctx) {
     ctx.body = await strapi.plugin(PLUGIN_ID).service("status").getStatus();
@@ -40,7 +36,6 @@ const admin = {
 const routes = {
   admin
 };
-const ALLOWED_FORMAT_SET = new Set(ALLOWED_IMAGE_FORMATS);
 const parseInteger = (name, value) => {
   if (!value) {
     return void 0;
@@ -69,35 +64,6 @@ const normalizeEnvPrefix = (prefix) => {
   }
   return trimmed.endsWith("_") ? trimmed : `${trimmed}_`;
 };
-const normalizeFormat = (format) => {
-  const normalized = format.trim().toLowerCase();
-  const alias = normalized === "jpg" ? "jpeg" : normalized;
-  if (!ALLOWED_FORMAT_SET.has(alias)) {
-    return null;
-  }
-  return alias;
-};
-const normalizeFormats = (formats, maxFormats) => {
-  const unique = [];
-  const seen = /* @__PURE__ */ new Set();
-  for (const format of formats) {
-    const normalized = normalizeFormat(format);
-    if (!normalized || seen.has(normalized)) {
-      continue;
-    }
-    unique.push(normalized);
-    seen.add(normalized);
-  }
-  if (unique.length === 0) {
-    throw new Error(
-      `[${PLUGIN_ID}] No valid image formats were configured. Allowed formats: ${ALLOWED_IMAGE_FORMATS.join(", ")}`
-    );
-  }
-  if (unique.length > maxFormats) {
-    throw new Error(`[${PLUGIN_ID}] formats length (${unique.length}) exceeds maxFormats (${maxFormats}).`);
-  }
-  return unique;
-};
 const isValidHttpUrl = (value) => {
   try {
     const url = new URL(value);
@@ -125,13 +91,9 @@ const resolvePluginConfig = (options = {}, env = process.env) => {
   const secretAccessKey = toTrimmedOrUndefined(options.secretAccessKey) ?? getEnv("CF_R2_SECRET_ACCESS_KEY");
   const publicBaseUrl = toTrimmedOrUndefined(options.publicBaseUrl) ?? getEnv("CF_PUBLIC_BASE_URL");
   const endpoint = toTrimmedOrUndefined(options.endpoint) ?? getEnv("CF_R2_ENDPOINT") ?? (accountId ? `https://${accountId}.r2.cloudflarestorage.com` : void 0);
-  const maxFormats = options.maxFormats ?? parseInteger("CF_IMAGE_MAX_FORMATS", getEnv("CF_IMAGE_MAX_FORMATS")) ?? DEFAULT_MAX_FORMATS;
-  const quality = options.quality ?? parseInteger("CF_IMAGE_QUALITY", getEnv("CF_IMAGE_QUALITY")) ?? DEFAULT_QUALITY;
   const basePath = toTrimmedOrUndefined(options.basePath) ?? getEnv("CF_R2_BASE_PATH") ?? DEFAULT_BASE_PATH;
   const cacheControl = toTrimmedOrUndefined(options.cacheControl) ?? getEnv("CF_R2_CACHE_CONTROL");
   const requestTimeout = options.requestTimeout ?? parseInteger("CF_R2_REQUEST_TIMEOUT", getEnv("CF_R2_REQUEST_TIMEOUT")) ?? DEFAULT_REQUEST_TIMEOUT_MS;
-  const rawFormats = options.formats ?? getEnv("CF_IMAGE_FORMATS")?.split(",") ?? [...DEFAULT_IMAGE_FORMATS];
-  const formats = normalizeFormats(rawFormats, maxFormats);
   const missing = [];
   const prefixedOrDefault = (key) => envPrefix ? `${envPrefix}${key} or ${key}` : key;
   if (!accountId) missing.push(prefixedOrDefault("CF_R2_ACCOUNT_ID"));
@@ -142,18 +104,6 @@ const resolvePluginConfig = (options = {}, env = process.env) => {
   if (!endpoint) missing.push(`${prefixedOrDefault("CF_R2_ENDPOINT")} or ${prefixedOrDefault("CF_R2_ACCOUNT_ID")}`);
   if (missing.length > 0) {
     throw new Error(`[${PLUGIN_ID}] Missing required configuration: ${missing.join(", ")}`);
-  }
-  if (!Number.isInteger(maxFormats)) {
-    throw new Error(`[${PLUGIN_ID}] maxFormats must be an integer.`);
-  }
-  if (!Number.isInteger(quality)) {
-    throw new Error(`[${PLUGIN_ID}] quality must be an integer.`);
-  }
-  if (maxFormats < 1 || maxFormats > 10) {
-    throw new Error(`[${PLUGIN_ID}] maxFormats must be between 1 and 10.`);
-  }
-  if (quality < 1 || quality > 100) {
-    throw new Error(`[${PLUGIN_ID}] quality must be between 1 and 100.`);
   }
   if (!Number.isInteger(requestTimeout) || requestTimeout < 1) {
     throw new Error(`[${PLUGIN_ID}] requestTimeout must be a positive integer.`);
@@ -179,9 +129,6 @@ const resolvePluginConfig = (options = {}, env = process.env) => {
     secretAccessKey: resolvedSecretAccessKey,
     publicBaseUrl: resolvedPublicBaseUrl.replace(/\/+$/g, ""),
     basePath,
-    formats,
-    quality,
-    maxFormats,
     cacheControl,
     requestTimeout,
     maxUploadBufferBytes: options.maxUploadBufferBytes
@@ -202,9 +149,6 @@ const toPublicConfig = (config) => {
     endpoint: maskEndpointAccountId(config.endpoint, config.accountId),
     publicBaseUrl: config.publicBaseUrl,
     basePath: config.basePath,
-    formats: config.formats,
-    quality: config.quality,
-    maxFormats: config.maxFormats,
     cacheControl: config.cacheControl,
     requestTimeout: config.requestTimeout
   };
@@ -218,9 +162,6 @@ const ENV_KEY_DESCRIPTIONS = {
   CF_R2_ENDPOINT: "R2 S3-compatible endpoint URL (auto-derived from account ID if omitted)",
   CF_R2_BASE_PATH: "Object key prefix inside the bucket",
   CF_R2_CACHE_CONTROL: "Cache-Control header for uploaded objects",
-  CF_IMAGE_FORMATS: "Comma-separated image output formats (e.g. webp,avif)",
-  CF_IMAGE_QUALITY: "Image compression quality (1–100)",
-  CF_IMAGE_MAX_FORMATS: "Maximum number of image format variants (1–10)",
   CF_R2_REQUEST_TIMEOUT: `Fetch request timeout in milliseconds (default: ${DEFAULT_REQUEST_TIMEOUT_MS})`
 };
 const REQUIRED_ENV_KEYS = [
@@ -234,10 +175,7 @@ const OPTIONAL_ENV_KEYS = [
   "CF_R2_ENDPOINT",
   "CF_R2_BASE_PATH",
   "CF_R2_CACHE_CONTROL",
-  "CF_R2_REQUEST_TIMEOUT",
-  "CF_IMAGE_FORMATS",
-  "CF_IMAGE_QUALITY",
-  "CF_IMAGE_MAX_FORMATS"
+  "CF_R2_REQUEST_TIMEOUT"
 ];
 const hasConfiguredValue = (value) => {
   if (typeof value === "string") {
@@ -263,9 +201,6 @@ const checkEnvKeys = (options = {}, env = process.env) => {
     CF_R2_ENDPOINT: "endpoint",
     CF_R2_BASE_PATH: "basePath",
     CF_R2_CACHE_CONTROL: "cacheControl",
-    CF_IMAGE_FORMATS: "formats",
-    CF_IMAGE_QUALITY: "quality",
-    CF_IMAGE_MAX_FORMATS: "maxFormats",
     CF_R2_REQUEST_TIMEOUT: "requestTimeout"
   };
   const isResolved = (key) => {

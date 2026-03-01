@@ -8,14 +8,11 @@
 [![CI](https://github.com/MehdiZare/strapi-plugin-cloudflare-r2-assets/actions/workflows/ci.yml/badge.svg)](https://github.com/MehdiZare/strapi-plugin-cloudflare-r2-assets/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
 
-Strapi 5 upload provider and plugin that stores media assets in **Cloudflare R2** and serves them through **Cloudflare edge image resizing** (`/cdn-cgi/image/...`). Drop it into any Strapi 5 project for S3-compatible object storage with automatic on-the-fly image optimization.
+Strapi 5 upload provider and plugin that stores media assets in **Cloudflare R2**. Drop it into any Strapi 5 project for S3-compatible object storage backed by Cloudflare R2. Strapi handles all image variants natively.
 
 ## Features
 
 - Upload provider for Strapi's Upload plugin backed by Cloudflare R2
-- Automatic edge image resizing via Cloudflare's `/cdn-cgi/image/` transform pipeline
-- Default output formats: `webp` + `avif` (configurable)
-- Configurable format list and max-formats guard
 - Built-in admin diagnostics page (provider status, effective config, bucket connectivity)
 - Secrets stay in environment variables only — never persisted in the database
 
@@ -24,7 +21,6 @@ Strapi 5 upload provider and plugin that stores media assets in **Cloudflare R2*
 - Node.js 20, 22, or 24 (Node 21 is not supported)
 - Strapi 5.37.1 or newer
 - Cloudflare R2 bucket
-- Cloudflare-proxied public domain for image delivery (`/cdn-cgi/image/...`)
 
 ## Installation
 
@@ -37,7 +33,6 @@ npm install strapi-plugin-cloudflare-r2-assets
 1. Create an R2 bucket.
 2. Create an R2 API token with least privilege for the bucket.
 3. Configure a public domain (proxied through Cloudflare) that points to your bucket assets.
-4. Ensure Cloudflare Image Resizing is enabled for your zone.
 
 ## Environment variables
 
@@ -57,9 +52,6 @@ npm install strapi-plugin-cloudflare-r2-assets
 |----------|---------|-------------|
 | `CF_R2_ENDPOINT` | `https://<accountId>.r2.cloudflarestorage.com` | Custom R2 endpoint |
 | `CF_R2_BASE_PATH` | `uploads` | Object key prefix |
-| `CF_IMAGE_FORMATS` | `webp,avif` | Comma-separated output formats |
-| `CF_IMAGE_QUALITY` | `82` | Image compression quality (1-100) |
-| `CF_IMAGE_MAX_FORMATS` | `4` | Maximum number of format variants (1-10) |
 | `CF_R2_CACHE_CONTROL` | — | Cache-Control header for uploaded objects |
 | `CF_R2_REQUEST_TIMEOUT` | `30000` | Request timeout in milliseconds |
 | `CF_R2_ENV_PREFIX` | — | Prefix for env keys (e.g. `APP_` reads `APP_CF_R2_ACCOUNT_ID`) |
@@ -89,9 +81,6 @@ All settings are resolved from environment variables by default. You can optiona
 ```jsonc
 providerOptions: {
   basePath: 'uploads',       // default: 'uploads'
-  formats: ['webp', 'avif'], // default: ['webp', 'avif']
-  quality: 82,               // default: 82
-  maxFormats: 4,             // default: 4
 },
 ```
 
@@ -114,7 +103,6 @@ Access requires the plugin read permission: `plugin::cloudflare-r2-assets.read`
 
 - API keys are read only from environment variables — no credential persistence
 - Config validation fails fast on missing or invalid values
-- Numeric options are strict integers (`CF_IMAGE_QUALITY`, `CF_IMAGE_MAX_FORMATS`)
 - `CF_PUBLIC_BASE_URL` and `CF_R2_ENDPOINT` must be valid `http(s)` URLs
 - Admin diagnostics redact account identity and never expose secrets
 - Diagnostics route is gated by explicit plugin read permission

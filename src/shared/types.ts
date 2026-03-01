@@ -1,7 +1,5 @@
 import type { Readable } from 'node:stream';
 
-export type AllowedImageFormat = 'webp' | 'avif' | 'jpeg' | 'png';
-
 export interface ProviderUploadFile {
   name: string;
   hash: string;
@@ -28,9 +26,6 @@ export interface RawPluginConfig {
   secretAccessKey?: string;
   publicBaseUrl?: string;
   basePath?: string;
-  formats?: string[];
-  quality?: number;
-  maxFormats?: number;
   cacheControl?: string;
   requestTimeout?: number;
   maxUploadBufferBytes?: number;
@@ -45,9 +40,6 @@ export interface ResolvedPluginConfig {
   secretAccessKey: string;
   publicBaseUrl: string;
   basePath: string;
-  formats: AllowedImageFormat[];
-  quality: number;
-  maxFormats: number;
   cacheControl?: string;
   requestTimeout: number;
   maxUploadBufferBytes?: number;
@@ -82,9 +74,6 @@ export interface SettingsStatusResponse {
     endpoint: string;
     publicBaseUrl: string;
     basePath: string;
-    formats: AllowedImageFormat[];
-    quality: number;
-    maxFormats: number;
     cacheControl?: string;
   };
   envKeys?: EnvKeyInfo[];

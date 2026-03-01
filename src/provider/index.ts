@@ -2,44 +2,15 @@ import { Readable } from 'node:stream';
 
 import { DEFAULT_MAX_UPLOAD_BUFFER_BYTES, PLUGIN_ID, PROVIDER_PACKAGE_NAME } from '../shared/constants';
 import { resolvePluginConfig } from '../shared/config';
-import { buildObjectKey, extractObjectKeyFromPublicUrl, isCloudflareTransformUrl, normalizeObjectKey } from '../shared/path';
+import { buildObjectKey, extractObjectKeyFromPublicUrl, normalizeObjectKey } from '../shared/path';
 import { createR2Client, buildObjectUrl, buildBucketUrl } from '../shared/r2-client';
 import type { ProviderUploadFile, RawPluginConfig } from '../shared/types';
-import { buildPublicObjectUrl, buildResizedUrl } from '../shared/url-builder';
-
-const isImageMimeType = (mime: string): boolean => mime.toLowerCase().startsWith('image/');
+import { buildPublicObjectUrl } from '../shared/url-builder';
 
 const initProvider = (options: RawPluginConfig = {}) => {
   const config = resolvePluginConfig(options);
   const client = createR2Client(config);
   return { client, config };
-};
-
-const buildDerivedFormats = (file: ProviderUploadFile, sourceUrl: string, options: ReturnType<typeof resolvePluginConfig>) => {
-  if (!isImageMimeType(file.mime)) {
-    return undefined;
-  }
-
-  return Object.fromEntries(
-    options.formats.map((format) => {
-      const ext = format === 'jpeg' ? '.jpg' : `.${format}`;
-      const mime = format === 'jpeg' ? 'image/jpeg' : `image/${format}`;
-
-      return [
-        format,
-        {
-          ext,
-          mime,
-          hash: `${file.hash}_${format}`,
-          name: `${file.hash}_${format}${ext}`,
-          size: file.size,
-          width: file.width,
-          height: file.height,
-          url: buildResizedUrl(options, sourceUrl, format),
-        },
-      ];
-    })
-  );
 };
 
 const resolveBody = (file: ProviderUploadFile): Buffer | ReadableStream => {
@@ -89,15 +60,12 @@ const provider = {
         throw new Error(`[${PLUGIN_ID}] Failed to upload object "${objectKey}" to bucket "${config.bucket}": HTTP ${response.status}${text ? `: ${text}` : ''}`);
       }
 
-      const sourceUrl = buildPublicObjectUrl(config.publicBaseUrl, objectKey);
-
-      file.url = sourceUrl;
+      file.url = buildPublicObjectUrl(config.publicBaseUrl, objectKey);
       file.provider = PROVIDER_PACKAGE_NAME;
       file.provider_metadata = {
         bucket: config.bucket,
         key: objectKey,
       };
-      file.formats = buildDerivedFormats(file, sourceUrl, config);
     };
 
     return {
@@ -133,10 +101,6 @@ const provider = {
         await upload(file);
       },
       async delete(file: ProviderUploadFile) {
-        if (!file.provider_metadata && isCloudflareTransformUrl(file.url)) {
-          return;
-        }
-
         const metadataKey =
           typeof file.provider_metadata?.key === 'string' ? normalizeObjectKey(file.provider_metadata.key) : null;
         const keyFromUrl = extractObjectKeyFromPublicUrl(config.publicBaseUrl, file.url);

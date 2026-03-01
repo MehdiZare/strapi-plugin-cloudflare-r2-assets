@@ -2,7 +2,7 @@
 
 This guide is for LLM assistants and users who want to integrate `strapi-plugin-cloudflare-r2-assets` into a Strapi app.
 
-Use this for **installation and runtime usage**.  
+Use this for **installation and runtime usage**.
 Use `AGENTS.md` for repository contribution workflows.
 
 ## Goal
@@ -10,8 +10,8 @@ Use `AGENTS.md` for repository contribution workflows.
 Configure Strapi Upload to:
 
 1. Store original files in Cloudflare R2
-2. Return Cloudflare edge image resizing URLs
-3. Default to `webp` + `avif` for image format variants
+2. Serve assets via a Cloudflare-proxied public URL
+3. Let Strapi handle all image variants natively
 
 ## Prerequisites
 
@@ -19,7 +19,6 @@ Configure Strapi Upload to:
 - Node 20, 22, or 24
 - Cloudflare R2 bucket
 - Cloudflare-proxied public domain for media delivery
-- Cloudflare Image Resizing enabled
 
 ## Install
 
@@ -52,9 +51,6 @@ All settings are resolved from environment variables by default. You can optiona
 ```jsonc
 providerOptions: {
   basePath: 'uploads',     // default: 'uploads'
-  formats: ['webp', 'avif'], // default: ['webp', 'avif']
-  quality: 82,             // default: 82
-  maxFormats: 4,           // default: 4
 },
 ```
 
@@ -72,9 +68,6 @@ Optional:
 
 - `CF_R2_ENDPOINT`
 - `CF_R2_BASE_PATH`
-- `CF_IMAGE_FORMATS`
-- `CF_IMAGE_QUALITY`
-- `CF_IMAGE_MAX_FORMATS`
 - `CF_R2_CACHE_CONTROL`
 - `CF_R2_REQUEST_TIMEOUT` (fetch timeout in milliseconds; default: `30000`)
 - `CF_R2_ENV_PREFIX`
@@ -124,7 +117,6 @@ npm run develop
 
 - Object exists in R2
 - `file.url` uses `CF_PUBLIC_BASE_URL`
-- format URLs include `/cdn-cgi/image/...`
 
 5. Delete image and confirm object is removed from R2
 

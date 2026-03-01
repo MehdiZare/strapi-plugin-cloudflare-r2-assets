@@ -5,8 +5,7 @@ This file explains how coding agents should work with this repository.
 ## Project summary
 
 - Package: `strapi-plugin-cloudflare-r2-assets`
-- Purpose: Strapi 5 upload provider + plugin integration for Cloudflare R2 storage and Cloudflare edge image resizing URLs.
-- Default image formats: `webp`, `avif` (configurable).
+- Purpose: Strapi 5 upload provider + plugin integration for Cloudflare R2 storage.
 - Secret handling: environment variables only (no DB persistence).
 
 ## Runtime and toolchain
@@ -58,18 +57,17 @@ Prerelease lane:
   - `release:patch`
 - publishes prerelease package to npm `next`
 
-Stable lane (PR-based, respects branch protection):
+Stable lane (label-driven):
 
-1. Go to **Actions → "Release PR" → Run workflow**
-2. Select bump type (`patch`, `minor`, or `major`)
-3. The workflow validates, bumps the version, rebuilds, and opens a PR with `dist/` artifacts
+1. Create a PR from `dev` to `main`
+2. Apply exactly one release label: `release:patch`, `release:minor`, or `release:major`
+3. CI validates the PR (build, test, typecheck across Node 20/22/24)
 4. Review and merge the PR
-5. `release-tag.yml` auto-creates an annotated `v*` tag on the merge commit
-6. Tag push triggers `release.yml` which publishes to npm `latest`
+5. `release-tag.yml` detects the label, bumps version, builds `dist/`, commits to main, tags, and publishes to npm `latest`
 
-Release invariants (both lanes):
+Release invariants:
 
-- Release PR workflow runs full validation before bumping
+- Tests are NOT re-run at publish time — CI already validated on the PR
 - Tags must include required artifacts in commit tree:
   - `dist/provider/index.js`
   - `dist/provider/index.mjs`
@@ -102,9 +100,6 @@ export default () => ({
       provider: 'strapi-plugin-cloudflare-r2-assets',
       providerOptions: {
         basePath: 'uploads',
-        formats: ['webp', 'avif'],
-        quality: 82,
-        maxFormats: 4,
       },
     },
   },
@@ -128,9 +123,6 @@ Optional:
 
 - `CF_R2_ENDPOINT`
 - `CF_R2_BASE_PATH`
-- `CF_IMAGE_FORMATS`
-- `CF_IMAGE_QUALITY`
-- `CF_IMAGE_MAX_FORMATS`
 - `CF_R2_CACHE_CONTROL`
 - `CF_R2_ENV_PREFIX`
 
@@ -170,7 +162,6 @@ Never add secret display on this page.
 
 - Keep env-only secret model intact.
 - Preserve backward compatibility for existing unprefixed env vars.
-- Default formats must remain `webp` + `avif` unless explicitly changed.
 - Run `npm test`, `npm run build`, and `npm run verify` before finalizing.
 - Keep docs (`README.md`) aligned with any config/runtime changes.
 
@@ -179,5 +170,4 @@ Never add secret display on this page.
 1. Upload image in Media Library.
 2. Confirm object exists in R2.
 3. Confirm `file.url` points to public base URL.
-4. Confirm generated format URLs include `/cdn-cgi/image/...`.
-5. Delete image and confirm object removal from R2.
+4. Delete image and confirm object removal from R2.

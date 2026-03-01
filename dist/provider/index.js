@@ -4,14 +4,9 @@ const node_stream = require("node:stream");
 const aws4fetch = require("aws4fetch");
 const PLUGIN_ID = "cloudflare-r2-assets";
 const PROVIDER_PACKAGE_NAME = "strapi-plugin-cloudflare-r2-assets";
-const DEFAULT_IMAGE_FORMATS = ["webp", "avif"];
-const DEFAULT_QUALITY = 82;
-const DEFAULT_MAX_FORMATS = 4;
 const DEFAULT_BASE_PATH = "uploads";
 const DEFAULT_REQUEST_TIMEOUT_MS = 3e4;
 const DEFAULT_MAX_UPLOAD_BUFFER_BYTES = 100 * 1024 * 1024;
-const ALLOWED_IMAGE_FORMATS = ["webp", "avif", "jpeg", "png"];
-const ALLOWED_FORMAT_SET = new Set(ALLOWED_IMAGE_FORMATS);
 const parseInteger = (name, value) => {
   if (!value) {
     return void 0;
@@ -40,35 +35,6 @@ const normalizeEnvPrefix = (prefix) => {
   }
   return trimmed.endsWith("_") ? trimmed : `${trimmed}_`;
 };
-const normalizeFormat = (format) => {
-  const normalized = format.trim().toLowerCase();
-  const alias = normalized === "jpg" ? "jpeg" : normalized;
-  if (!ALLOWED_FORMAT_SET.has(alias)) {
-    return null;
-  }
-  return alias;
-};
-const normalizeFormats = (formats, maxFormats) => {
-  const unique = [];
-  const seen = /* @__PURE__ */ new Set();
-  for (const format of formats) {
-    const normalized = normalizeFormat(format);
-    if (!normalized || seen.has(normalized)) {
-      continue;
-    }
-    unique.push(normalized);
-    seen.add(normalized);
-  }
-  if (unique.length === 0) {
-    throw new Error(
-      `[${PLUGIN_ID}] No valid image formats were configured. Allowed formats: ${ALLOWED_IMAGE_FORMATS.join(", ")}`
-    );
-  }
-  if (unique.length > maxFormats) {
-    throw new Error(`[${PLUGIN_ID}] formats length (${unique.length}) exceeds maxFormats (${maxFormats}).`);
-  }
-  return unique;
-};
 const isValidHttpUrl = (value) => {
   try {
     const url = new URL(value);
@@ -95,13 +61,9 @@ const resolvePluginConfig = (options = {}, env = process.env) => {
   const secretAccessKey = toTrimmedOrUndefined(options.secretAccessKey) ?? getEnv("CF_R2_SECRET_ACCESS_KEY");
   const publicBaseUrl = toTrimmedOrUndefined(options.publicBaseUrl) ?? getEnv("CF_PUBLIC_BASE_URL");
   const endpoint = toTrimmedOrUndefined(options.endpoint) ?? getEnv("CF_R2_ENDPOINT") ?? (accountId ? `https://${accountId}.r2.cloudflarestorage.com` : void 0);
-  const maxFormats = options.maxFormats ?? parseInteger("CF_IMAGE_MAX_FORMATS", getEnv("CF_IMAGE_MAX_FORMATS")) ?? DEFAULT_MAX_FORMATS;
-  const quality = options.quality ?? parseInteger("CF_IMAGE_QUALITY", getEnv("CF_IMAGE_QUALITY")) ?? DEFAULT_QUALITY;
   const basePath = toTrimmedOrUndefined(options.basePath) ?? getEnv("CF_R2_BASE_PATH") ?? DEFAULT_BASE_PATH;
   const cacheControl = toTrimmedOrUndefined(options.cacheControl) ?? getEnv("CF_R2_CACHE_CONTROL");
   const requestTimeout = options.requestTimeout ?? parseInteger("CF_R2_REQUEST_TIMEOUT", getEnv("CF_R2_REQUEST_TIMEOUT")) ?? DEFAULT_REQUEST_TIMEOUT_MS;
-  const rawFormats = options.formats ?? getEnv("CF_IMAGE_FORMATS")?.split(",") ?? [...DEFAULT_IMAGE_FORMATS];
-  const formats = normalizeFormats(rawFormats, maxFormats);
   const missing = [];
   const prefixedOrDefault = (key) => envPrefix ? `${envPrefix}${key} or ${key}` : key;
   if (!accountId) missing.push(prefixedOrDefault("CF_R2_ACCOUNT_ID"));
@@ -112,18 +74,6 @@ const resolvePluginConfig = (options = {}, env = process.env) => {
   if (!endpoint) missing.push(`${prefixedOrDefault("CF_R2_ENDPOINT")} or ${prefixedOrDefault("CF_R2_ACCOUNT_ID")}`);
   if (missing.length > 0) {
     throw new Error(`[${PLUGIN_ID}] Missing required configuration: ${missing.join(", ")}`);
-  }
-  if (!Number.isInteger(maxFormats)) {
-    throw new Error(`[${PLUGIN_ID}] maxFormats must be an integer.`);
-  }
-  if (!Number.isInteger(quality)) {
-    throw new Error(`[${PLUGIN_ID}] quality must be an integer.`);
-  }
-  if (maxFormats < 1 || maxFormats > 10) {
-    throw new Error(`[${PLUGIN_ID}] maxFormats must be between 1 and 10.`);
-  }
-  if (quality < 1 || quality > 100) {
-    throw new Error(`[${PLUGIN_ID}] quality must be between 1 and 100.`);
   }
   if (!Number.isInteger(requestTimeout) || requestTimeout < 1) {
     throw new Error(`[${PLUGIN_ID}] requestTimeout must be a positive integer.`);
@@ -149,9 +99,6 @@ const resolvePluginConfig = (options = {}, env = process.env) => {
     secretAccessKey: resolvedSecretAccessKey,
     publicBaseUrl: resolvedPublicBaseUrl.replace(/\/+$/g, ""),
     basePath,
-    formats,
-    quality,
-    maxFormats,
     cacheControl,
     requestTimeout,
     maxUploadBufferBytes: options.maxUploadBufferBytes
@@ -184,14 +131,6 @@ const buildObjectKey = (basePath, nestedPath, filename) => {
   const safeNested = sanitizePathSegment(nestedPath);
   const safeFile = trimSlash(filename);
   return [safeBase, safeNested, safeFile].filter(Boolean).join("/");
-};
-const isCloudflareTransformUrl = (fileUrl) => {
-  if (!fileUrl) return false;
-  try {
-    return new URL(fileUrl).pathname.includes("/cdn-cgi/image/");
-  } catch {
-    return false;
-  }
 };
 const extractObjectKeyFromPublicUrl = (publicBaseUrl, fileUrl) => {
   if (!fileUrl) {
@@ -251,42 +190,10 @@ const ensureLeadingSlash = (value) => value.startsWith("/") ? value : `/${value}
 const buildPublicObjectUrl = (publicBaseUrl, objectKey) => {
   return `${stripTrailingSlash(publicBaseUrl)}${ensureLeadingSlash(objectKey)}`;
 };
-const buildResizedUrl = (config, sourceUrl, format) => {
-  const params = [`format=${format}`, `quality=${config.quality}`].join(",");
-  const normalizedBase = stripTrailingSlash(config.publicBaseUrl);
-  const localPath = sourceUrl.startsWith(normalizedBase) ? ensureLeadingSlash(sourceUrl.slice(normalizedBase.length)) : sourceUrl;
-  const sourceSegment = localPath.startsWith("/") ? localPath : `/${localPath}`;
-  return `${normalizedBase}/cdn-cgi/image/${params}${sourceSegment}`;
-};
-const isImageMimeType = (mime) => mime.toLowerCase().startsWith("image/");
 const initProvider = (options = {}) => {
   const config = resolvePluginConfig(options);
   const client = createR2Client(config);
   return { client, config };
-};
-const buildDerivedFormats = (file, sourceUrl, options) => {
-  if (!isImageMimeType(file.mime)) {
-    return void 0;
-  }
-  return Object.fromEntries(
-    options.formats.map((format) => {
-      const ext = format === "jpeg" ? ".jpg" : `.${format}`;
-      const mime = format === "jpeg" ? "image/jpeg" : `image/${format}`;
-      return [
-        format,
-        {
-          ext,
-          mime,
-          hash: `${file.hash}_${format}`,
-          name: `${file.hash}_${format}${ext}`,
-          size: file.size,
-          width: file.width,
-          height: file.height,
-          url: buildResizedUrl(options, sourceUrl, format)
-        }
-      ];
-    })
-  );
 };
 const resolveBody = (file) => {
   if (file.buffer) {
@@ -333,7 +240,6 @@ const provider = {
         bucket: config.bucket,
         key: objectKey
       };
-      file.formats = buildDerivedFormats(file, sourceUrl, config);
     };
     return {
       async upload(file) {
@@ -366,9 +272,6 @@ const provider = {
         await upload(file);
       },
       async delete(file) {
-        if (!file.provider_metadata && isCloudflareTransformUrl(file.url)) {
-          return;
-        }
         const metadataKey = typeof file.provider_metadata?.key === "string" ? normalizeObjectKey(file.provider_metadata.key) : null;
         const keyFromUrl = extractObjectKeyFromPublicUrl(config.publicBaseUrl, file.url);
         const objectKey = metadataKey ?? keyFromUrl;

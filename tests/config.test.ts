@@ -11,14 +11,10 @@ describe('resolvePluginConfig', () => {
     CF_PUBLIC_BASE_URL: 'https://media.example.com',
   };
 
-  it('applies default formats', () => {
+  it('resolves config with defaults', () => {
     const result = resolvePluginConfig({}, baseEnv);
-    expect(result.formats).toEqual(['webp', 'avif']);
-  });
-
-  it('normalizes jpg to jpeg and deduplicates formats', () => {
-    const result = resolvePluginConfig({ formats: ['jpg', 'jpeg', 'avif'] }, baseEnv);
-    expect(result.formats).toEqual(['jpeg', 'avif']);
+    expect(result.basePath).toBe('uploads');
+    expect(result.requestTimeout).toBe(30_000);
   });
 
   it('throws when required values are missing', () => {
@@ -72,27 +68,6 @@ describe('resolvePluginConfig', () => {
     expect(result.envPrefix).toBe('MISSING_');
     expect(result.accountId).toBe('acc_12345');
     expect(result.bucket).toBe('media');
-  });
-
-  it('throws when formats exceed maxFormats', () => {
-    expect(() =>
-      resolvePluginConfig(
-        {
-          formats: ['webp', 'avif', 'jpeg'],
-          maxFormats: 2,
-        },
-        baseEnv
-      )
-    ).toThrow(/exceeds maxFormats/);
-  });
-
-  it('throws when CF_IMAGE_QUALITY is not an integer', () => {
-    expect(() =>
-      resolvePluginConfig({}, {
-        ...baseEnv,
-        CF_IMAGE_QUALITY: '82abc',
-      })
-    ).toThrow(/CF_IMAGE_QUALITY must be an integer/);
   });
 
   it('throws when public base URL is invalid', () => {
