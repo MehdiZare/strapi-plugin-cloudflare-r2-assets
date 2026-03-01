@@ -204,7 +204,8 @@ const toPublicConfig = (config) => {
     formats: config.formats,
     quality: config.quality,
     maxFormats: config.maxFormats,
-    cacheControl: config.cacheControl
+    cacheControl: config.cacheControl,
+    requestTimeout: config.requestTimeout
   };
 };
 const ENV_KEY_DESCRIPTIONS = {

@@ -11,7 +11,13 @@ const loadTestEnv = (): Record<string, string> => {
     if (!trimmed || trimmed.startsWith('#')) continue;
     const eqIdx = trimmed.indexOf('=');
     if (eqIdx === -1) continue;
-    env[trimmed.slice(0, eqIdx).trim()] = trimmed.slice(eqIdx + 1).trim();
+    const key = trimmed.slice(0, eqIdx).trim();
+    const rawValue = trimmed.slice(eqIdx + 1).trim();
+    env[key] =
+      (rawValue.startsWith('"') && rawValue.endsWith('"')) ||
+      (rawValue.startsWith("'") && rawValue.endsWith("'"))
+        ? rawValue.slice(1, -1)
+        : rawValue;
   }
   return env;
 };

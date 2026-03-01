@@ -217,6 +217,7 @@ export const toPublicConfig = (config: ResolvedPluginConfig) => {
     quality: config.quality,
     maxFormats: config.maxFormats,
     cacheControl: config.cacheControl,
+    requestTimeout: config.requestTimeout,
   };
 };
 

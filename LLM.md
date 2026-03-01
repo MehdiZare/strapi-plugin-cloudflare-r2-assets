@@ -168,7 +168,7 @@ Both lanes validate build/test/verify and artifact checks before publish.
 
 ## Supply-chain alerts
 
-Supply-chain scanners (e.g. Socket.dev) may report high alerts against this plugin. All current alerts originate from upstream Strapi peer/dev dependencies — not from this plugin's sole production dependency (`aws4fetch`). Since `aws4fetch` has zero transitive dependencies, supply-chain risk from this plugin is minimal.
+Supply-chain scanners (e.g. Socket.dev) may report high alerts against this plugin. Current alerts originate from upstream Strapi peer/dev dependencies — not from this plugin's current production dependency set (`aws4fetch`). Since `aws4fetch` has zero transitive dependencies, direct supply-chain risk from this plugin remains low.
 
 Known alerts and mitigations:
 
