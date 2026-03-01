@@ -3,7 +3,9 @@ import {
   DEFAULT_BASE_PATH,
   DEFAULT_IMAGE_FORMATS,
   DEFAULT_MAX_FORMATS,
+  DEFAULT_MAX_UPLOAD_BUFFER_BYTES,
   DEFAULT_QUALITY,
+  DEFAULT_REQUEST_TIMEOUT_MS,
   PLUGIN_ID,
 } from './constants';
 import type { AllowedImageFormat, EnvKeyInfo, RawPluginConfig, ResolvedPluginConfig } from './types';
@@ -126,6 +128,8 @@ export const resolvePluginConfig = (options: RawPluginConfig = {}, env: NodeJS.P
   const quality = options.quality ?? parseInteger('CF_IMAGE_QUALITY', getEnv('CF_IMAGE_QUALITY')) ?? DEFAULT_QUALITY;
   const basePath = toTrimmedOrUndefined(options.basePath) ?? getEnv('CF_R2_BASE_PATH') ?? DEFAULT_BASE_PATH;
   const cacheControl = toTrimmedOrUndefined(options.cacheControl) ?? getEnv('CF_R2_CACHE_CONTROL');
+  const requestTimeout = options.requestTimeout ?? parseInteger('CF_R2_REQUEST_TIMEOUT', getEnv('CF_R2_REQUEST_TIMEOUT')) ?? DEFAULT_REQUEST_TIMEOUT_MS;
+  const maxUploadBufferBytes = options.maxUploadBufferBytes ?? parseInteger('CF_R2_MAX_UPLOAD_BUFFER_BYTES', getEnv('CF_R2_MAX_UPLOAD_BUFFER_BYTES')) ?? DEFAULT_MAX_UPLOAD_BUFFER_BYTES;
 
   const rawFormats = options.formats ?? getEnv('CF_IMAGE_FORMATS')?.split(',') ?? [...DEFAULT_IMAGE_FORMATS];
   const formats = normalizeFormats(rawFormats, maxFormats);
@@ -159,6 +163,14 @@ export const resolvePluginConfig = (options: RawPluginConfig = {}, env: NodeJS.P
     throw new Error(`[${PLUGIN_ID}] quality must be between 1 and 100.`);
   }
 
+  if (!Number.isInteger(requestTimeout) || requestTimeout < 1) {
+    throw new Error(`[${PLUGIN_ID}] requestTimeout must be a positive integer.`);
+  }
+
+  if (!Number.isInteger(maxUploadBufferBytes) || maxUploadBufferBytes < 1) {
+    throw new Error(`[${PLUGIN_ID}] maxUploadBufferBytes must be a positive integer.`);
+  }
+
   const resolvedAccountId = assertPresent(accountId, 'CF_R2_ACCOUNT_ID');
   const resolvedBucket = assertPresent(bucket, 'CF_R2_BUCKET');
   const resolvedEndpoint = assertPresent(endpoint, 'CF_R2_ENDPOINT');
@@ -187,6 +199,8 @@ export const resolvePluginConfig = (options: RawPluginConfig = {}, env: NodeJS.P
     quality,
     maxFormats,
     cacheControl,
+    requestTimeout,
+    maxUploadBufferBytes,
   };
 };
 
@@ -210,6 +224,8 @@ export const toPublicConfig = (config: ResolvedPluginConfig) => {
     quality: config.quality,
     maxFormats: config.maxFormats,
     cacheControl: config.cacheControl,
+    requestTimeout: config.requestTimeout,
+    maxUploadBufferBytes: config.maxUploadBufferBytes,
   };
 };
 
@@ -225,6 +241,8 @@ const ENV_KEY_DESCRIPTIONS: Record<string, string> = {
   CF_IMAGE_FORMATS: 'Comma-separated image output formats (e.g. webp,avif)',
   CF_IMAGE_QUALITY: 'Image compression quality (1–100)',
   CF_IMAGE_MAX_FORMATS: 'Maximum number of image format variants (1–10)',
+  CF_R2_REQUEST_TIMEOUT: 'Fetch request timeout in milliseconds (default: 30000)',
+  CF_R2_MAX_UPLOAD_BUFFER_BYTES: 'Maximum upload buffer size in bytes (default: 104857600)',
 };
 
 const REQUIRED_ENV_KEYS = [
@@ -239,6 +257,8 @@ const OPTIONAL_ENV_KEYS = [
   'CF_R2_ENDPOINT',
   'CF_R2_BASE_PATH',
   'CF_R2_CACHE_CONTROL',
+  'CF_R2_REQUEST_TIMEOUT',
+  'CF_R2_MAX_UPLOAD_BUFFER_BYTES',
   'CF_IMAGE_FORMATS',
   'CF_IMAGE_QUALITY',
   'CF_IMAGE_MAX_FORMATS',
@@ -276,6 +296,8 @@ export const checkEnvKeys = (
     CF_IMAGE_FORMATS: 'formats',
     CF_IMAGE_QUALITY: 'quality',
     CF_IMAGE_MAX_FORMATS: 'maxFormats',
+    CF_R2_REQUEST_TIMEOUT: 'requestTimeout',
+    CF_R2_MAX_UPLOAD_BUFFER_BYTES: 'maxUploadBufferBytes',
   };
 
   const isResolved = (key: string): boolean => {

@@ -32,6 +32,8 @@ export interface RawPluginConfig {
   quality?: number;
   maxFormats?: number;
   cacheControl?: string;
+  requestTimeout?: number;
+  maxUploadBufferBytes?: number;
 }
 
 export interface ResolvedPluginConfig {
@@ -47,6 +49,8 @@ export interface ResolvedPluginConfig {
   quality: number;
   maxFormats: number;
   cacheControl?: string;
+  requestTimeout: number;
+  maxUploadBufferBytes: number;
 }
 
 export interface VersionCheck {

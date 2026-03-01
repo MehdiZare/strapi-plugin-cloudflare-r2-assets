@@ -1,11 +1,9 @@
-import type { Readable } from 'node:stream';
-
-import { DeleteObjectCommand, HeadBucketCommand, PutObjectCommand } from '@aws-sdk/client-s3';
+import { Readable } from 'node:stream';
 
 import { PLUGIN_ID, PROVIDER_PACKAGE_NAME } from '../shared/constants';
 import { resolvePluginConfig } from '../shared/config';
 import { buildObjectKey, extractObjectKeyFromPublicUrl, isCloudflareTransformUrl, normalizeObjectKey } from '../shared/path';
-import { createS3Client } from '../shared/s3-client';
+import { createR2Client, buildObjectUrl, buildBucketUrl } from '../shared/r2-client';
 import type { ProviderUploadFile, RawPluginConfig } from '../shared/types';
 import { buildPublicObjectUrl, buildResizedUrl } from '../shared/url-builder';
 
@@ -13,7 +11,7 @@ const isImageMimeType = (mime: string): boolean => mime.toLowerCase().startsWith
 
 const initProvider = (options: RawPluginConfig = {}) => {
   const config = resolvePluginConfig(options);
-  const client = createS3Client(config);
+  const client = createR2Client(config);
   return { client, config };
 };
 
@@ -44,13 +42,13 @@ const buildDerivedFormats = (file: ProviderUploadFile, sourceUrl: string, option
   );
 };
 
-const resolveBody = (file: ProviderUploadFile): Buffer | Readable => {
+const resolveBody = (file: ProviderUploadFile): Buffer | ReadableStream => {
   if (file.buffer) {
     return file.buffer;
   }
 
   if (file.stream) {
-    return file.stream;
+    return Readable.toWeb(file.stream) as ReadableStream;
   }
 
   throw new Error(`[${PLUGIN_ID}] File is missing both "buffer" and "stream".`);
@@ -69,19 +67,26 @@ const provider = {
       const objectKey = resolveObjectKey(file, config.basePath);
       const body = resolveBody(file);
 
+      const url = buildObjectUrl(client.endpoint, config.bucket, objectKey);
+      const headers: Record<string, string> = { 'Content-Type': file.mime };
+      if (config.cacheControl) headers['Cache-Control'] = config.cacheControl;
+
+      let response: Response;
       try {
-        await client.send(
-          new PutObjectCommand({
-            Bucket: config.bucket,
-            Key: objectKey,
-            Body: body,
-            ContentType: file.mime,
-            CacheControl: config.cacheControl,
-          })
-        );
+        response = await client.fetch(url, {
+          method: 'PUT',
+          headers,
+          body,
+          duplex: 'half',
+        } as RequestInit);
       } catch (error) {
         const detail = error instanceof Error ? error.message : String(error);
         throw new Error(`[${PLUGIN_ID}] Failed to upload object "${objectKey}" to bucket "${config.bucket}": ${detail}`, { cause: error });
+      }
+
+      if (!response.ok) {
+        const text = await response.text().catch(() => '');
+        throw new Error(`[${PLUGIN_ID}] Failed to upload object "${objectKey}" to bucket "${config.bucket}": HTTP ${response.status}${text ? `: ${text}` : ''}`);
       }
 
       const sourceUrl = buildPublicObjectUrl(config.publicBaseUrl, objectKey);
@@ -100,6 +105,27 @@ const provider = {
         await upload(file);
       },
       async uploadStream(file: ProviderUploadFile) {
+        // R2 requires Content-Length on PUT. Streams don't provide it,
+        // so buffer the stream before uploading.
+        if (file.stream && !file.buffer) {
+          const chunks: Buffer[] = [];
+          let totalBytes = 0;
+          try {
+            for await (const chunk of file.stream) {
+              const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+              totalBytes += buffer.length;
+              if (totalBytes > config.maxUploadBufferBytes) {
+                throw new Error(`Upload stream exceeds maximum buffer size of ${config.maxUploadBufferBytes} bytes`);
+              }
+              chunks.push(buffer);
+            }
+          } catch (error) {
+            const detail = error instanceof Error ? error.message : String(error);
+            throw new Error(`[${PLUGIN_ID}] Failed to buffer upload stream for "${file.name}": ${detail}`, { cause: error });
+          }
+          file.buffer = Buffer.concat(chunks);
+          file.stream = undefined;
+        }
         await upload(file);
       },
       async delete(file: ProviderUploadFile) {
@@ -116,16 +142,19 @@ const provider = {
           return;
         }
 
+        const url = buildObjectUrl(client.endpoint, config.bucket, objectKey);
+        let response: Response;
         try {
-          await client.send(
-            new DeleteObjectCommand({
-              Bucket: config.bucket,
-              Key: objectKey,
-            })
-          );
+          response = await client.fetch(url, { method: 'DELETE' });
         } catch (error) {
           const detail = error instanceof Error ? error.message : String(error);
           console.warn(`[${PLUGIN_ID}] Failed to delete object "${objectKey}" from bucket "${config.bucket}": ${detail}`);
+          return;
+        }
+
+        if (!response.ok && response.status !== 404) {
+          const text = await response.text().catch(() => '');
+          console.warn(`[${PLUGIN_ID}] Failed to delete object "${objectKey}" from bucket "${config.bucket}": HTTP ${response.status}${text ? `: ${text}` : ''}`);
         }
       },
       isPrivate() {
@@ -135,11 +164,17 @@ const provider = {
         return file;
       },
       async healthCheck() {
+        const url = buildBucketUrl(client.endpoint, config.bucket);
+        let response: Response;
         try {
-          await client.send(new HeadBucketCommand({ Bucket: config.bucket }));
+          response = await client.fetch(url, { method: 'HEAD' });
         } catch (error) {
           const detail = error instanceof Error ? error.message : String(error);
           throw new Error(`[${PLUGIN_ID}] Health check failed for bucket "${config.bucket}": ${detail}`, { cause: error });
+        }
+
+        if (!response.ok) {
+          throw new Error(`[${PLUGIN_ID}] Health check failed for bucket "${config.bucket}": HTTP ${response.status}`);
         }
       },
     };
