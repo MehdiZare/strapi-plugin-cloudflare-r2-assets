@@ -40,11 +40,21 @@ const createStrapi = (uploadConfig: unknown): MockStrapi => ({
   },
 });
 
-const originalEnvPrefix = process.env.CF_R2_ENV_PREFIX;
+const r2EnvKeys = [
+  'CF_R2_ENV_PREFIX',
+  'CF_R2_ACCOUNT_ID',
+  'CF_R2_BUCKET',
+  'CF_R2_ACCESS_KEY_ID',
+  'CF_R2_SECRET_ACCESS_KEY',
+  'CF_PUBLIC_BASE_URL',
+] as const;
+
+const savedEnv: Record<string, string | undefined> = {};
 const fetchMock = vi.fn<typeof global.fetch>();
 
 describe('status service', () => {
   beforeEach(() => {
+    for (const key of r2EnvKeys) savedEnv[key] = process.env[key];
     r2FetchMock.mockReset();
     r2FetchMock.mockResolvedValue(new Response(null, { status: 200 }));
     fetchMock.mockReset();
@@ -53,12 +63,10 @@ describe('status service', () => {
   });
 
   afterEach(() => {
-    if (typeof originalEnvPrefix === 'undefined') {
-      delete process.env.CF_R2_ENV_PREFIX;
-      return;
+    for (const key of r2EnvKeys) {
+      if (savedEnv[key] === undefined) delete process.env[key];
+      else process.env[key] = savedEnv[key];
     }
-
-    process.env.CF_R2_ENV_PREFIX = originalEnvPrefix;
   });
 
   it('returns sanitized connectivity details when bucket check fails', async () => {
@@ -80,6 +88,11 @@ describe('status service', () => {
 
   it('returns scoped configuration validation errors', async () => {
     delete process.env.CF_R2_ENV_PREFIX;
+    delete process.env.CF_R2_ACCOUNT_ID;
+    delete process.env.CF_R2_BUCKET;
+    delete process.env.CF_R2_ACCESS_KEY_ID;
+    delete process.env.CF_R2_SECRET_ACCESS_KEY;
+    delete process.env.CF_PUBLIC_BASE_URL;
 
     const strapi = createStrapi({
       provider: 'strapi-plugin-cloudflare-r2-assets',
