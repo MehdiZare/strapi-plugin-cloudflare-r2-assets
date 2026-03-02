@@ -30,11 +30,15 @@ jobs:
 
       - name: Create and push annotated tag
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -a "v${{ steps.version.outputs.version }}" \
-            -m "chore(release): v${{ steps.version.outputs.version }}"
-          git push origin "v${{ steps.version.outputs.version }}"
+          TAG="v${{ steps.version.outputs.version }}"
+          if git ls-remote --tags origin "refs/tags/${TAG}" | grep -q "${TAG}"; then
+            echo "Tag ${TAG} already exists — skipping"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -a "${TAG}" -m "chore(release): ${TAG}"
+            git push origin "${TAG}"
+          fi
 
       - name: Setup Node.js
         uses: actions/setup-node@v6.2.0
@@ -51,7 +55,14 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Publish to npm
-        run: npm publish --access public
+        run: |
+          PKG_NAME=$(node -p 'require("./package.json").name')
+          VERSION="${{ steps.version.outputs.version }}"
+          if npm view "${PKG_NAME}@${VERSION}" version 2>/dev/null; then
+            echo "${PKG_NAME}@${VERSION} already published — skipping"
+          else
+            npm publish --access public
+          fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
@@ -65,11 +76,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "v${{ steps.version.outputs.version }}" \
-            --title "v${{ steps.version.outputs.version }}" \
-            --notes "Automated release" \
-            *.tgz \
-            "dist-v${{ steps.version.outputs.version }}.tar.gz"
+          TAG="v${{ steps.version.outputs.version }}"
+          if gh release view "${TAG}" &>/dev/null; then
+            echo "Release ${TAG} already exists — skipping"
+          else
+            gh release create "${TAG}" \
+              --title "${TAG}" \
+              --notes "Automated release" \
+              *.tgz \
+              "dist-v${{ steps.version.outputs.version }}.tar.gz"
+          fi
 
       - name: Delete release branch
         env:
