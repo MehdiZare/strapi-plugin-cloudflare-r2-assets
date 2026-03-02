@@ -99,7 +99,7 @@ describe('provider upload', () => {
     expect(headers['Cache-Control']).toBe('public, max-age=31536000');
   });
 
-  it('sets file.url, provider_metadata, and formats after upload', async () => {
+  it('sets file.url and provider_metadata after upload (default strapi mode)', async () => {
     const instance = provider.init(baseOptions);
     const file = createFile({
       buffer: Buffer.from('data'),
@@ -115,9 +115,7 @@ describe('provider upload', () => {
       bucket: 'media',
       key: 'uploads/abc123.jpg',
     });
-    expect(file.formats).toBeDefined();
-    expect(file.formats).toHaveProperty('webp');
-    expect(file.formats).toHaveProperty('avif');
+    expect(file.formats).toBeUndefined();
   });
 
   it('does not set formats for non-image files', async () => {
@@ -181,34 +179,6 @@ describe('provider delete', () => {
     );
 
     expect(r2FetchMock).not.toHaveBeenCalled();
-  });
-
-  it('skips delete for format variant URLs (cdn-cgi transform, no provider_metadata)', async () => {
-    const instance = provider.init(baseOptions);
-
-    await instance.delete(
-      createFile({
-        url: 'https://media.example.com/cdn-cgi/image/format=webp,quality=82/uploads/abc123.jpg',
-        provider_metadata: undefined,
-      })
-    );
-
-    expect(r2FetchMock).not.toHaveBeenCalled();
-  });
-
-  it('still deletes when provider_metadata exists even if URL looks like a transform URL', async () => {
-    const instance = provider.init(baseOptions);
-
-    await instance.delete(
-      createFile({
-        url: 'https://media.example.com/cdn-cgi/image/format=webp,quality=82/uploads/abc123.jpg',
-        provider_metadata: { key: 'uploads/abc123.jpg' },
-      })
-    );
-
-    expect(r2FetchMock).toHaveBeenCalledTimes(1);
-    const [url] = r2FetchMock.mock.calls[0]!;
-    expect(url).toContain('/media/uploads/abc123.jpg');
   });
 
   it('logs warning and does not throw when delete fails', async () => {

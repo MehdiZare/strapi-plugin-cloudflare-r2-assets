@@ -23,9 +23,6 @@ const baseConfig: ResolvedPluginConfig = {
   secretAccessKey: 'secret_key',
   publicBaseUrl: 'https://media.example.com',
   basePath: 'uploads',
-  formats: ['webp', 'avif'],
-  quality: 82,
-  maxFormats: 4,
   requestTimeout: 30_000,
 };
 
