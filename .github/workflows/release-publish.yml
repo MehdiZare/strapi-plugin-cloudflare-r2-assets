@@ -18,10 +18,10 @@ jobs:
       && startsWith(github.event.pull_request.head.ref, 'release/v')
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout main
+      - name: Checkout merged release commit
         uses: actions/checkout@v6.0.2
         with:
-          ref: main
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
           fetch-depth: 0
 
       - name: Read version

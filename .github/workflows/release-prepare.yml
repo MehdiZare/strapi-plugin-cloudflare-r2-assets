@@ -22,10 +22,10 @@ jobs:
       && !startsWith(github.event.pull_request.head.ref, 'release/')
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout main
+      - name: Checkout merged PR commit
         uses: actions/checkout@v6.0.2
         with:
-          ref: main
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
           fetch-depth: 0
           fetch-tags: true
 
@@ -33,13 +33,19 @@ jobs:
         id: bump
         run: |
           LABELS='${{ toJSON(github.event.pull_request.labels.*.name) }}'
-          if echo "$LABELS" | grep -q '"release:major"'; then
-            echo "type=major" >> "$GITHUB_OUTPUT"
-          elif echo "$LABELS" | grep -q '"release:minor"'; then
-            echo "type=minor" >> "$GITHUB_OUTPUT"
-          else
-            echo "type=patch" >> "$GITHUB_OUTPUT"
+          COUNT=0
+          TYPE=""
+          for LEVEL in major minor patch; do
+            if echo "$LABELS" | grep -q "\"release:${LEVEL}\""; then
+              COUNT=$((COUNT + 1))
+              TYPE="$LEVEL"
+            fi
+          done
+          if [ "$COUNT" -ne 1 ]; then
+            echo "::error::Exactly one release label required (found $COUNT): release:patch|minor|major"
+            exit 1
           fi
+          echo "type=$TYPE" >> "$GITHUB_OUTPUT"
 
       - name: Setup Node.js
         uses: actions/setup-node@v6.2.0
