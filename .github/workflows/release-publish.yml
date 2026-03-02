@@ -74,5 +74,6 @@ jobs:
       - name: Delete release branch
         env:
           GH_TOKEN: ${{ github.token }}
+          BRANCH_REF: ${{ github.event.pull_request.head.ref }}
         run: |
-          gh api -X DELETE "repos/${{ github.repository }}/git/refs/heads/${{ github.event.pull_request.head.ref }}"
+          gh api -X DELETE "repos/${{ github.repository }}/git/refs/heads/${BRANCH_REF}"
