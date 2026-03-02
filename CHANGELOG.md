@@ -19,6 +19,13 @@
 - `CF_R2_REQUEST_TIMEOUT` env variable for configuring fetch request timeout in milliseconds (default: 30000)
 - E2E test suite: full Strapi 5 instance lifecycle with upload, download verification, delete, and R2 cleanup validation
 
+### Removed
+
+- **Breaking:** Image variant system (`imageVariantMode` config option and `strapi` / `cloudflare` / `both` modes). The provider now delegates all image variant handling to Strapi's native responsive image pipeline.
+- Env vars: `CF_IMAGE_FORMATS`, `CF_IMAGE_QUALITY`, `CF_IMAGE_MAX_FORMATS`, `CF_IMAGE_VARIANT_MODE`
+- Provider options: `formats`, `quality`, `maxFormats`, `imageVariantMode`
+- Cloudflare edge image resizing URL generation (`/cdn-cgi/image/...`)
+
 ### Developer Experience
 
 - R2 integration tests refactored to use provider API directly
@@ -31,9 +38,6 @@ Initial release of the Strapi 5 upload provider for Cloudflare R2.
 ### Features
 
 - Upload provider backed by Cloudflare R2 with S3-compatible API
-- Cloudflare edge image resizing URL generation (`/cdn-cgi/image/...`)
-- Default image formats: WebP + AVIF (configurable via `CF_IMAGE_FORMATS`)
-- Configurable image quality and max formats guard
 - Read-only admin diagnostics page under Settings with provider status, effective config, and R2 bucket connectivity check
 - Optional `CF_R2_ENV_PREFIX` for multi-tenant or namespaced deployments
 - Configurable `Cache-Control` header via `CF_R2_CACHE_CONTROL`

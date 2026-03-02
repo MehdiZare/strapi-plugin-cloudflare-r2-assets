@@ -231,8 +231,7 @@ const provider = {
         const text = await response.text().catch(() => "");
         throw new Error(`[${PLUGIN_ID}] Failed to upload object "${objectKey}" to bucket "${config.bucket}": HTTP ${response.status}${text ? `: ${text}` : ""}`);
       }
-      const sourceUrl = buildPublicObjectUrl(config.publicBaseUrl, objectKey);
-      file.url = sourceUrl;
+      file.url = buildPublicObjectUrl(config.publicBaseUrl, objectKey);
       file.provider = PROVIDER_PACKAGE_NAME;
       file.provider_metadata = {
         bucket: config.bucket,
