@@ -63,7 +63,9 @@ Stable lane (label-driven):
 2. Apply exactly one release label: `release:patch`, `release:minor`, or `release:major`
 3. CI validates the PR (build, test, typecheck across Node 20/22/24)
 4. Review and merge the PR
-5. `release-tag.yml` detects the label, bumps version, builds `dist/`, commits to main, tags, and publishes to npm `latest`
+5. `release-prepare.yml` detects the label, bumps version, builds `dist/`, and opens a `release/vX.Y.Z` branch PR to main
+6. CI runs on the release PR; auto-merge is enabled so it merges when checks pass
+7. `release-publish.yml` detects the release PR merge, tags, publishes to npm `latest`, and creates a GitHub release
 
 Release invariants:
 

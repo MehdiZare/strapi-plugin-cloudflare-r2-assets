@@ -1,5 +1,5 @@
 # yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
-name: Release Tag
+name: Release Prepare
 
 on:
   pull_request:
@@ -10,20 +10,22 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
-  label-release:
+  prepare-release:
     if: >-
       github.event.pull_request.merged == true
       && (contains(github.event.pull_request.labels.*.name, 'release:patch')
           || contains(github.event.pull_request.labels.*.name, 'release:minor')
           || contains(github.event.pull_request.labels.*.name, 'release:major'))
+      && !startsWith(github.event.pull_request.head.ref, 'release/')
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout main
+      - name: Checkout merged PR commit
         uses: actions/checkout@v6.0.2
         with:
-          ref: main
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
           fetch-depth: 0
           fetch-tags: true
 
@@ -31,13 +33,19 @@ jobs:
         id: bump
         run: |
           LABELS='${{ toJSON(github.event.pull_request.labels.*.name) }}'
-          if echo "$LABELS" | grep -q '"release:major"'; then
-            echo "type=major" >> "$GITHUB_OUTPUT"
-          elif echo "$LABELS" | grep -q '"release:minor"'; then
-            echo "type=minor" >> "$GITHUB_OUTPUT"
-          else
-            echo "type=patch" >> "$GITHUB_OUTPUT"
+          COUNT=0
+          TYPE=""
+          for LEVEL in major minor patch; do
+            if echo "$LABELS" | grep -q "\"release:${LEVEL}\""; then
+              COUNT=$((COUNT + 1))
+              TYPE="$LEVEL"
+            fi
+          done
+          if [ "$COUNT" -ne 1 ]; then
+            echo "::error::Exactly one release label required (found $COUNT): release:patch|minor|major"
+            exit 1
           fi
+          echo "type=$TYPE" >> "$GITHUB_OUTPUT"
 
       - name: Setup Node.js
         uses: actions/setup-node@v6.2.0
@@ -75,44 +83,29 @@ jobs:
       - name: Verify release artifacts
         run: npm run check:artifacts
 
-      - name: Commit release
+      - name: Create release branch and commit
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "release/v${{ steps.version.outputs.version }}"
           git add -f package.json bun.lock dist/
           git commit -m "chore(release): v${{ steps.version.outputs.version }}"
+          git push origin "release/v${{ steps.version.outputs.version }}"
 
-      - name: Create annotated tag
-        run: |
-          git tag -a "v${{ steps.version.outputs.version }}" \
-            -m "chore(release): v${{ steps.version.outputs.version }}"
-
-      - name: Push release commit and tag
-        run: git push origin main --follow-tags
-
-      - name: Setup Node.js for npm publish
-        uses: actions/setup-node@v6.2.0
-        with:
-          node-version: 22
-          registry-url: https://registry.npmjs.org
-
-      - name: Publish to npm
-        run: npm publish --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Pack npm tarball
-        run: npm pack
-
-      - name: Archive dist folder
-        run: tar -czf "dist-v${{ steps.version.outputs.version }}.tar.gz" dist
-
-      - name: Create GitHub release
+      - name: Create pull request
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "v${{ steps.version.outputs.version }}" \
-            --title "v${{ steps.version.outputs.version }}" \
-            --notes "Automated release" \
-            *.tgz \
-            "dist-v${{ steps.version.outputs.version }}.tar.gz"
+          gh pr create \
+            --base main \
+            --head "release/v${{ steps.version.outputs.version }}" \
+            --title "chore(release): v${{ steps.version.outputs.version }}" \
+            --body "Automated release PR for v${{ steps.version.outputs.version }}." \
+            --label "release:${{ steps.bump.outputs.type }}"
+
+      - name: Enable auto-merge
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr merge "release/v${{ steps.version.outputs.version }}" \
+            --auto --merge
