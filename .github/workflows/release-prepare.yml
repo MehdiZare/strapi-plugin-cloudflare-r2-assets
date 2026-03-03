@@ -83,6 +83,20 @@ jobs:
       - name: Verify release artifacts
         run: npm run check:artifacts
 
+      - name: Clean up stale release branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          BRANCH="release/v${{ steps.version.outputs.version }}"
+          # Close any open PR from this branch
+          if gh pr view "$BRANCH" --json state -q '.state' 2>/dev/null | grep -q OPEN; then
+            gh pr close "$BRANCH" --delete-branch
+          else
+            # Delete the remote branch if it exists (no PR to close)
+            git ls-remote --exit-code --heads origin "refs/heads/$BRANCH" &&
+              gh api -X DELETE "repos/${{ github.repository }}/git/refs/heads/$BRANCH" || true
+          fi
+
       - name: Create release branch and commit
         run: |
           git config user.name "github-actions[bot]"
